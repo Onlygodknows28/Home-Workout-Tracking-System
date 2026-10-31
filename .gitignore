@@ -1,0 +1,34 @@
+# Dependencies
+**/node_modules/
+/.pnp
+.pnp.js
+
+# Build & Framework Outputs
+frontend/.next/
+frontend/out/
+backend/dist/
+**/*.tsbuildinfo
+
+# Environment Variables & Secrets (keep .env.example templates)
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local SQLite Databases
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Personal Scratch & Local IDE Directories
+/scratch/
+scratch/
+.vscode/
+.idea/
+
+# Logs & OS Metadata
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db

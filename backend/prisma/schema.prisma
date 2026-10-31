@@ -1,0 +1,211 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  password          String
+  name              String
+  avatar            String?
+  role              String            @default("USER")
+  xp                Int               @default(0)
+  level             Int               @default(1)
+  fitCoins          Int               @default(50)
+  currentStreak     Int               @default(0)
+  highestStreak     Int               @default(0)
+  lastActiveDate    DateTime?
+  streakFreezeCount Int               @default(1)
+  todayXpEarned     Int               @default(0)
+  todayCoinsEarned  Int               @default(0)
+  lastDailyReset    DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  profile           Profile?
+  workoutLogs       WorkoutLog[]
+  dailyCheckins     DailyCheckin[]
+  inventory         UserInventory[]
+  sentGifts         StreakGiftLog[]   @relation("SentGifts")
+  receivedGifts     StreakGiftLog[]   @relation("ReceivedGifts")
+  buddies1          BuddyPair[]       @relation("User1Buddies")
+  buddies2          BuddyPair[]       @relation("User2Buddies")
+  antiCheatLogs     AntiCheatLog[]
+  notifications     Notification[]
+}
+
+model Profile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  height             Float    // cm
+  weight             Float    // kg
+  bmi                Float
+  pushupBaseline     Int      @default(10)
+  fitnessLevel       String   @default("BEGINNER") // BEGINNER, NOVICE, INTERMEDIATE, ADVANCED
+  primaryGoal        String   @default("MUSCLE_GAIN") // FAT_LOSS, MUSCLE_GAIN, ENDURANCE, MOBILITY
+  injuries           String   @default("") // comma separated: WRIST, SHOULDER, KNEE, LOWER_BACK, NECK, ELBOW, ANKLE
+  availableEquipment String   @default("BODYWEIGHT,CHAIR,TOWEL")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Exercise {
+  id                      String    @id @default(uuid())
+  name                    String
+  slug                    String    @unique
+  description             String
+  primaryMuscle           String    // CHEST, BACK, LEGS, SHOULDERS, ARMS, CORE, FULL_BODY
+  secondaryMuscles        String    @default("")
+  equipment               String    @default("BODYWEIGHT") // BODYWEIGHT, CHAIR, TOWEL, BACKPACK, DOOR_FRAME, WATER_BOTTLE
+  difficulty              Int       @default(1) // 1 to 5
+  progressionId           String?
+  regressionId            String?
+  contraindicatedInjuries String    @default("") // e.g. KNEE, WRIST, SHOULDER, LOWER_BACK
+  defaultReps             Int       @default(10)
+  defaultSets             Int       @default(3)
+  restSeconds             Int       @default(45)
+  videoUrl                String?
+  instructions            String?
+  createdAt               DateTime  @default(now())
+}
+
+model WorkoutPlan {
+  id                   String   @id @default(uuid())
+  title                String
+  description          String
+  targetLevel          String   @default("BEGINNER")
+  estimatedDurationMin Int      @default(15)
+  focusMuscles         String   @default("FULL_BODY")
+  exercisesJson        String   // JSON string of array of exercises
+  createdAt            DateTime @default(now())
+}
+
+model WorkoutLog {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutTitle        String
+  startedAt           DateTime
+  completedAt         DateTime
+  durationSeconds     Int
+  totalReps           Int
+  rpeScore            Int      @default(2) // 1: Quá Dễ, 2: Vừa Sức, 3: Quá Sức
+  calorieBurnEstimate Int      @default(100)
+  earnedXp            Int      @default(0)
+  earnedCoins         Int      @default(0)
+  isFlaggedCheat      Boolean  @default(false)
+  detailsJson         String   @default("[]")
+  createdAt           DateTime @default(now())
+}
+
+model DailyCheckin {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String   // YYYY-MM-DD
+  calorieType String   // DEFICIT, MAINTENANCE, SURPLUS
+  energyLevel Int      @default(3)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+model ShopItem {
+  id          String          @id @default(uuid())
+  name        String
+  description String
+  priceCoins  Int
+  itemType    String          // STREAK_FREEZE, AVATAR_FRAME, BADGE, TITLE
+  icon        String
+  isConsumable Boolean        @default(true)
+  inventory   UserInventory[]
+}
+
+model UserInventory {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  acquiredAt DateTime @default(now())
+
+  @@unique([userId, itemId])
+}
+
+model BuddyPair {
+  id             String         @id @default(uuid())
+  user1Id        String
+  user1          User           @relation("User1Buddies", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id        String
+  user2          User           @relation("User2Buddies", fields: [user2Id], references: [id], onDelete: Cascade)
+  status         String         @default("ACTIVE") // PENDING, ACTIVE, BROKEN
+  sharedStreak   Int            @default(0)
+  matchedAt      DateTime       @default(now())
+  lastSyncedDate String?
+  missions       BuddyMission[]
+
+  @@index([user1Id, status])
+  @@index([user2Id, status])
+  @@unique([user1Id, user2Id, status])
+}
+
+model BuddyMission {
+  id             String    @id @default(uuid())
+  buddyPairId    String
+  buddyPair      BuddyPair @relation(fields: [buddyPairId], references: [id], onDelete: Cascade)
+  date           String    // YYYY-MM-DD
+  title          String
+  description    String
+  targetReps     Int       @default(100)
+  user1Progress  Int       @default(0)
+  user2Progress  Int       @default(0)
+  user1Completed Boolean   @default(false)
+  user2Completed Boolean   @default(false)
+  rewardCoins    Int       @default(20)
+  isClaimed      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@unique([buddyPairId, date])
+}
+
+model StreakGiftLog {
+  id         String   @id @default(uuid())
+  fromUserId String
+  fromUser   User     @relation("SentGifts", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("ReceivedGifts", fields: [toUserId], references: [id], onDelete: Cascade)
+  giftType   String   @default("STREAK_FREEZE")
+  note       String?
+  createdAt  DateTime @default(now())
+}
+
+model AntiCheatLog {
+  id                   String   @id @default(uuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action               String
+  estimatedDurationSec Int
+  actualDurationSec    Int
+  reason               String
+  createdAt            DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // WORKOUT, LEVEL_UP, BUDDY_GIFT, BUDDY_SYNC, SHOP, STREAK, SYSTEM
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
