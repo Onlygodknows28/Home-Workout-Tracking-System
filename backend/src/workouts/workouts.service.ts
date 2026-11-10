@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AntiCheatService } from '../anti-cheat/anti-cheat.service';
 import { GamificationService } from '../gamification/gamification.service';
@@ -179,46 +179,66 @@ export class WorkoutsService {
       },
     });
 
-    // If both completed today, advance shared streak
+    // If both completed today, advance shared streak consecutively
     if (user1Completed && user2Completed && activePair.lastSyncedDate !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+      let newSharedStreak = 1;
+      // If pair completed yesterday, streak advances consecutively
+      if (activePair.lastSyncedDate === yesterday) {
+        newSharedStreak = (activePair.sharedStreak || 0) + 1;
+      } else {
+        // Continuity broken (gap > 1 day) -> start a fresh consecutive streak of 1
+        newSharedStreak = 1;
+      }
+
       await this.prisma.buddyPair.update({
         where: { id: activePair.id },
         data: {
-          sharedStreak: activePair.sharedStreak + 1,
+          sharedStreak: newSharedStreak,
           lastSyncedDate: today,
         },
       });
-      this.logger.log(`Buddy Pair ${activePair.id} shared streak increased to ${activePair.sharedStreak + 1}!`);
+      this.logger.log(
+        `Buddy Pair ${activePair.id} shared streak updated to ${newSharedStreak} (lastSyncedDate: ${activePair.lastSyncedDate}, today: ${today})`,
+      );
     }
   }
 
-  // Daily Nutrition Check-in (1-tap input)
+  // Daily Nutrition Check-in (1-tap input, strictly limited to once per day)
   async submitDailyCheckin(userId: string, dto: DailyCheckinDto) {
     const today = new Date().toISOString().split('T')[0];
 
-    const checkin = await this.prisma.dailyCheckin.upsert({
+    const existingCheckin = await this.prisma.dailyCheckin.findUnique({
       where: {
         userId_date: { userId, date: today },
       },
-      create: {
-        userId,
-        date: today,
-        calorieType: dto.calorieType,
-        energyLevel: dto.energyLevel ?? 3,
-        notes: dto.notes,
-      },
-      update: {
-        calorieType: dto.calorieType,
-        energyLevel: dto.energyLevel ?? 3,
-        notes: dto.notes,
-      },
     });
 
-    // Daily check-in gives +5 FitCoins bonus
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { fitCoins: { increment: 5 } },
-    });
+    if (existingCheckin) {
+      throw new BadRequestException(
+        'Bạn đã hoàn thành check-in dinh dưỡng hôm nay rồi. Mỗi ngày chỉ nhận thưởng 1 lần!',
+      );
+    }
+
+    const [checkin] = await this.prisma.$transaction([
+      this.prisma.dailyCheckin.create({
+        data: {
+          userId,
+          date: today,
+          calorieType: dto.calorieType,
+          energyLevel: dto.energyLevel ?? 3,
+          notes: dto.notes,
+        },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          fitCoins: { increment: 5 },
+          todayCoinsEarned: { increment: 5 },
+        },
+      }),
+    ]);
 
     return {
       message: 'Check-in dinh dưỡng thành công (+5 FitCoins)!',
@@ -266,11 +286,47 @@ export class WorkoutsService {
     ]);
 
     const lastActive = user?.lastActiveDate ? user.lastActiveDate.toISOString().split('T')[0] : null;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     const isNewDay = lastActive && lastActive !== today;
+
+    let currentStreak = user?.currentStreak || 0;
+    let streakFreezeCount = user?.streakFreezeCount || 0;
+    let lastActiveDate = user?.lastActiveDate || null;
+
+    // Consistency Check: If user has an active streak, but missed yesterday (lastActive is neither today nor yesterday):
+    if (user && currentStreak > 0 && lastActive && lastActive !== today && lastActive !== yesterday) {
+      const twoDaysAgo = new Date(Date.now() - 172800000).toISOString().split('T')[0];
+      if (streakFreezeCount > 0 && lastActive === twoDaysAgo) {
+        // Missed exactly yesterday and has a freeze: auto-consume freeze to protect streak!
+        streakFreezeCount -= 1;
+        lastActiveDate = new Date(Date.now() - 86400000);
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            streakFreezeCount,
+            lastActiveDate,
+          },
+        });
+        this.logger.log(`Lazy streak check: Protected streak for user ${userId} using 1 freeze.`);
+      } else {
+        // Gap > 1 day or no freeze available: streak is broken
+        currentStreak = 0;
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            currentStreak: 0,
+          },
+        });
+        this.logger.log(`Lazy streak check: Reset streak to 0 for user ${userId} due to broken continuity.`);
+      }
+    }
 
     const userStats = user
       ? {
           ...user,
+          currentStreak,
+          streakFreezeCount,
+          lastActiveDate,
           todayXpEarned: isNewDay ? 0 : user.todayXpEarned,
           todayCoinsEarned: isNewDay ? 0 : user.todayCoinsEarned,
         }

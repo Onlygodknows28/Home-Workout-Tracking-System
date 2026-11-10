@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Users, AlertTriangle, X, ArrowRight, UserMinus } from 'lucide-react';
+import { formatPersonName } from '../../lib/catalogTranslations';
 
 interface BuddyLimitModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export function BuddyLimitModal({
   onViewCurrentPartner,
   onUnpair,
 }: BuddyLimitModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [isConfirmingUnpair, setIsConfirmingUnpair] = useState(false);
   const [isUnpairing, setIsUnpairing] = useState(false);
 
@@ -47,12 +48,17 @@ export function BuddyLimitModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+    >
+      <div className="w-full max-w-md bg-[#F5F5F0] border border-[#D6D6D2] rounded-[14px] p-6 sm:p-7 text-[#333333] relative animate-in fade-in zoom-in-95 duration-200">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-[#1B3815] rounded-full bg-[#FAFCF8] border border-slate-200 cursor-pointer transition-colors"
+          className="absolute top-4 right-4 p-2 text-[#5C5C5C] hover:text-[#C42126] rounded-lg hover:bg-[#EBEBE6] cursor-pointer transition-colors"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
@@ -60,51 +66,57 @@ export function BuddyLimitModal({
 
         {!isConfirmingUnpair ? (
           <div>
-            {/* Warning Icon Badge */}
-            <div className="text-center mb-5">
-              <div className="w-16 h-16 rounded-3xl bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] mx-auto flex items-center justify-center mb-3 shadow-inner">
-                <AlertTriangle className="w-8 h-8" />
+            {/* Editorial Warning Header */}
+            <div className="text-center pb-4">
+              <div className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-[#EBEBE6] border border-[#D6D6D2] text-[#C42126] mb-2.5">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-              <h3 className="text-xl sm:text-2xl font-black text-[#1B3815]">
+              <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] uppercase tracking-tight leading-none">
                 {t('buddyLimitTitle')}
               </h3>
-              <p className="text-xs sm:text-sm text-slate-600 mt-2 font-medium leading-relaxed">
+              <p className="text-xs text-[#5C5C5C] mt-2 leading-relaxed">
                 {errorMessage || t('buddyLimitDesc')}
               </p>
             </div>
 
-            {/* Current Partner Info Card (if available) */}
+            {/* Current Partner Flush 1px Hairline Row (Zero nested card box!) */}
             {currentPartner && (
-              <div className="bg-[#FAFCF8] border-2 border-[#D8EACF] rounded-2xl p-3.5 mb-4 flex items-center space-x-3">
-                <div className="relative shrink-0">
+              <div className="py-3.5 mb-4 border-y border-[#D6D6D2] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src={currentPartner.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentPartner.name)}`}
+                    src={
+                      currentPartner.avatar ||
+                      `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentPartner.name)}`
+                    }
                     alt={currentPartner.name}
-                    className="w-12 h-12 rounded-xl border-2 border-[#52B72B] object-cover bg-white"
+                    className="w-11 h-11 rounded-full border border-[#D6D6D2] object-cover bg-[#EBEBE6] shrink-0"
                   />
-                  {currentPartner.level && (
-                    <span className="absolute -bottom-1 -right-1 bg-[#52B72B] text-[10px] font-black text-white px-1.5 py-0.2 rounded-md">
-                      L{currentPartner.level}
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-[#5C5C5C] uppercase tracking-wider block">
+                      {t('currentPartnerLabel')}
                     </span>
-                  )}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <h4 className="font-bold text-[#333333] text-sm truncate">
+                        {formatPersonName(currentPartner.name, language)}
+                      </h4>
+                      {currentPartner.level && (
+                        <span className="font-telemetry text-xs font-bold text-[#C42126] shrink-0">
+                          • L{currentPartner.level}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {t('currentPartnerLabel')}
-                  </span>
-                  <h4 className="font-extrabold text-[#1B3815] text-sm truncate">
-                    {currentPartner.name}
-                  </h4>
-                </div>
-                <span className="bg-[#EAF6E5] text-[#1B3815] border border-[#52B72B] text-[11px] font-black px-2.5 py-1 rounded-full shrink-0">
-                  Active
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E7D32] shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-[#2E7D32]" />
+                  <span>Active</span>
                 </span>
               </div>
             )}
 
             {/* 1-1 Policy Notice */}
-            <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-3 mb-5">
-              <p className="text-xs text-[#92400E] font-medium leading-relaxed">
+            <div className="bg-[#FDE8E9] border border-[#C42126]/25 rounded-lg p-3 mb-5">
+              <p className="text-xs text-[#C42126] font-medium leading-relaxed">
                 💡 {t('buddyLimitHint')}
               </p>
             </div>
@@ -117,7 +129,7 @@ export function BuddyLimitModal({
                     onClose();
                     onViewCurrentPartner();
                   }}
-                  className="w-full min-h-[50px] px-5 rounded-2xl bg-[#52B72B] hover:bg-[#469F24] text-white font-black text-xs uppercase shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full py-3 px-5 rounded-lg bg-[#333333] hover:bg-[#1F1F1F] text-[#FFFFFF] font-semibold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Users className="w-4 h-4" />
                   <span>{t('viewCurrentPartnerBtn')}</span>
@@ -128,16 +140,16 @@ export function BuddyLimitModal({
               {onUnpair && currentPartner && (
                 <button
                   onClick={() => setIsConfirmingUnpair(true)}
-                  className="w-full min-h-[46px] px-5 rounded-2xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-black text-xs uppercase transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full py-2.5 px-5 rounded-lg bg-[#FDE8E9] hover:bg-[#C42126] text-[#C42126] hover:text-[#FFFFFF] border border-[#C42126]/30 font-semibold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <UserMinus className="w-4 h-4 text-rose-500" />
+                  <UserMinus className="w-4 h-4" />
                   <span>{t('unpairAndSwitchBtn')}</span>
                 </button>
               )}
 
               <button
                 onClick={onClose}
-                className="w-full min-h-[44px] px-5 rounded-2xl bg-[#FAFCF8] hover:bg-[#EAF6E5] text-[#1B3815] font-bold text-xs uppercase transition-colors cursor-pointer border border-[#D8EACF]"
+                className="w-full py-2.5 px-5 rounded-lg bg-[#EBEBE6] hover:bg-[#D6D6D2]/70 text-[#333333] font-semibold text-xs uppercase tracking-wider transition-colors cursor-pointer border border-[#D6D6D2]"
               >
                 {t('understandBtn')}
               </button>
@@ -145,36 +157,44 @@ export function BuddyLimitModal({
           </div>
         ) : (
           /* Confirmation State for Unpairing */
-          <div className="text-center py-2 space-y-4">
-            <div className="w-16 h-16 rounded-3xl bg-rose-50 border-2 border-rose-200 text-rose-600 mx-auto flex items-center justify-center shadow-inner">
-              <UserMinus className="w-8 h-8" />
+          <div className="text-center py-1 space-y-4">
+            <div className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-[#FDE8E9] border border-[#C42126]/30 text-[#C42126]">
+              <UserMinus className="w-5 h-5" />
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-xl font-black text-[#1B3815]">
+              <h3 className="font-display text-3xl font-extrabold text-[#333333] uppercase tracking-tight leading-none">
                 {t('unpairConfirmTitle')}
               </h3>
-              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+              <p className="text-xs text-[#5C5C5C] leading-relaxed">
                 {t('unpairConfirmDesc')}
               </p>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-800 font-bold">
-              Bạn và <strong>{currentPartner?.name}</strong> sẽ kết thúc kết nối đồng đội hiện tại.
+            <div className="bg-[#FDE8E9] border border-[#C42126]/25 rounded-lg p-3 text-xs text-[#C42126] font-medium">
+              {language === 'vi' ? (
+                <>
+                  Bạn và <strong>{formatPersonName(currentPartner?.name, language)}</strong> sẽ kết thúc kết nối đồng đội hiện tại.
+                </>
+              ) : (
+                <>
+                  You and <strong>{formatPersonName(currentPartner?.name, language)}</strong> will end your current buddy connection.
+                </>
+              )}
             </div>
 
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2.5 pt-1">
               <button
                 onClick={handleUnpair}
                 disabled={isUnpairing}
-                className="w-full min-h-[50px] px-5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 px-5 rounded-lg btn-cta-red font-semibold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isUnpairing ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <UserMinus className="w-4 h-4" />
-                    <span>Xác Nhận Hủy Ghép Đôi</span>
+                    <span>{t('confirmUnpairBtn')}</span>
                   </>
                 )}
               </button>
@@ -182,9 +202,9 @@ export function BuddyLimitModal({
               <button
                 onClick={() => setIsConfirmingUnpair(false)}
                 disabled={isUnpairing}
-                className="w-full min-h-[44px] px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase transition-colors cursor-pointer"
+                className="w-full py-2.5 px-5 rounded-lg bg-[#EBEBE6] hover:bg-[#D6D6D2]/70 text-[#333333] border border-[#D6D6D2] font-semibold text-xs uppercase tracking-wider transition-colors cursor-pointer"
               >
-                Quay Lại
+                {t('cancelBtn')}
               </button>
             </div>
           </div>

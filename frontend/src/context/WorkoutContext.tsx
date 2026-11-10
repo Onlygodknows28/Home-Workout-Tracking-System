@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { ApiClient } from '../lib/api';
 import { playSoundCue } from '../lib/utils';
-import { useDataCache } from './DataCacheContext';
+import { useDataCache, CACHE_KEYS } from './DataCacheContext';
 import { useAuth } from './AuthContext';
 
 export interface ActiveWorkoutState {
@@ -29,6 +29,7 @@ interface WorkoutContextType {
   remainingRestSeconds: number;
   isRestModalMinimized: boolean;
   isRestPaused: boolean;
+  isMiniBarVisibleOnPath: (pathname: string) => boolean;
   startWorkout: (rec: any) => void;
   completeSet: () => void;
   skipExercise: () => void;
@@ -66,31 +67,40 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const { invalidate } = useDataCache();
   const { refreshUser } = useAuth();
 
-  const [activeWorkout, setActiveWorkout] = useState<ActiveWorkoutState>(() => {
-    if (typeof window === 'undefined') return initialState;
+  // Initialize deterministically on both Server and Client to prevent Hydration Mismatch
+  const [activeWorkout, setActiveWorkout] = useState<ActiveWorkoutState>(initialState);
+  const hasHydratedRef = useRef<boolean>(false);
+
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const elapsedSecondsRef = useRef<number>(0);
+  const [remainingRestSeconds, setRemainingRestSeconds] = useState<number>(0);
+  const lastBeepedSecondRef = useRef<number | null>(null);
+
+  // Restore saved workout session on client mount after hydration
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.isActive && parsed?.recommendation) {
-          return parsed;
+        if (parsed?.isActive && !parsed?.isCompleted && parsed?.recommendation) {
+          setActiveWorkout(parsed);
+        } else {
+          // Clean up any stale or already-completed workout session
+          localStorage.removeItem(STORAGE_KEY);
         }
       }
     } catch {
       // safe fallback
+    } finally {
+      hasHydratedRef.current = true;
     }
-    return initialState;
-  });
+  }, []);
 
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [remainingRestSeconds, setRemainingRestSeconds] = useState<number>(0);
-  const lastBeepedSecondRef = useRef<number | null>(null);
-
-  // Synchronize state with localStorage
+  // Synchronize state with localStorage after hydration
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !hasHydratedRef.current) return;
     try {
-      if (activeWorkout.isActive) {
+      if (activeWorkout.isActive && !activeWorkout.isCompleted) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(activeWorkout));
       } else {
         localStorage.removeItem(STORAGE_KEY);
@@ -113,7 +123,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           0,
           Math.floor((Date.now() - new Date(activeWorkout.startTime).getTime()) / 1000)
         );
-        setElapsedSeconds(diffSec);
+        elapsedSecondsRef.current = diffSec;
+        setElapsedSeconds((prev) => (prev === diffSec ? prev : diffSec));
       }
 
       // 2. Calculate remaining rest seconds with high precision
@@ -121,11 +132,11 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         if (activeWorkout.isRestPaused) {
           // When paused, maintain frozen remaining seconds
           const frozen = activeWorkout.restRemainingWhenPaused ?? 0;
-          setRemainingRestSeconds(frozen);
+          setRemainingRestSeconds((prev) => (prev === frozen ? prev : frozen));
         } else if (activeWorkout.restEndTime) {
           const remainingMs = activeWorkout.restEndTime - Date.now();
           const remSec = Math.max(0, Math.ceil(remainingMs / 1000));
-          setRemainingRestSeconds(remSec);
+          setRemainingRestSeconds((prev) => (prev === remSec ? prev : remSec));
 
           // Audio cues for 3, 2, 1 countdown
           if (remSec <= 3 && remSec > 0 && lastBeepedSecondRef.current !== remSec) {
@@ -434,7 +445,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       workoutTitle: rec.title,
       startedAt: activeWorkout.startTime || new Date().toISOString(),
       completedAt: new Date().toISOString(),
-      durationSeconds: Math.max(elapsedSeconds, 60),
+      durationSeconds: Math.max(elapsedSecondsRef.current, 60),
       estimatedDurationMin: Number(rec.estimatedDurationMin || 15),
       totalReps: rec.exercises.reduce(
         (sum: number, ex: any) => sum + (activeWorkout.completedSetsLog[ex.exerciseId] || ex.sets) * ex.reps,
@@ -452,37 +463,70 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
     const res = await ApiClient.submitWorkout(submissionData);
     discardWorkout();
-    invalidate('home_status');
-    invalidate('home_rec');
-    invalidate('profile_stats');
-    invalidate('workout_history');
+    invalidate(CACHE_KEYS.TODAY_STATUS);
+    invalidate(CACHE_KEYS.RECOMMENDATION);
+    invalidate(CACHE_KEYS.WORKOUT_HISTORY);
     await refreshUser();
     return res;
-  }, [activeWorkout, elapsedSeconds, invalidate, refreshUser, discardWorkout]);
+  }, [activeWorkout, invalidate, refreshUser, discardWorkout]);
 
-  return (
-    <WorkoutContext.Provider
-      value={{
-        activeWorkout,
-        elapsedSeconds,
-        remainingRestSeconds,
-        isRestModalMinimized: activeWorkout.isRestModalMinimized,
-        isRestPaused: activeWorkout.isRestPaused,
-        startWorkout,
-        completeSet,
-        skipExercise,
-        completeRest,
-        togglePauseRest,
-        addRestSeconds,
-        minimizeRestModal,
-        maximizeRestModal,
-        discardWorkout,
-        submitWorkout,
-      }}
-    >
-      {children}
-    </WorkoutContext.Provider>
+  const isMiniBarVisibleOnPath = useCallback(
+    (pathname: string) => {
+      const isRestingMinimized =
+        activeWorkout.isResting &&
+        (pathname !== '/workout' || activeWorkout.isRestModalMinimized);
+      return (
+        activeWorkout.isActive &&
+        !activeWorkout.isCompleted &&
+        (pathname !== '/workout' || isRestingMinimized)
+      );
+    },
+    [
+      activeWorkout.isActive,
+      activeWorkout.isCompleted,
+      activeWorkout.isResting,
+      activeWorkout.isRestModalMinimized,
+    ],
   );
+
+  const contextValue = React.useMemo(
+    () => ({
+      activeWorkout,
+      elapsedSeconds,
+      remainingRestSeconds,
+      isRestModalMinimized: activeWorkout.isRestModalMinimized,
+      isRestPaused: activeWorkout.isRestPaused,
+      isMiniBarVisibleOnPath,
+      startWorkout,
+      completeSet,
+      skipExercise,
+      completeRest,
+      togglePauseRest,
+      addRestSeconds,
+      minimizeRestModal,
+      maximizeRestModal,
+      discardWorkout,
+      submitWorkout,
+    }),
+    [
+      activeWorkout,
+      elapsedSeconds,
+      remainingRestSeconds,
+      isMiniBarVisibleOnPath,
+      startWorkout,
+      completeSet,
+      skipExercise,
+      completeRest,
+      togglePauseRest,
+      addRestSeconds,
+      minimizeRestModal,
+      maximizeRestModal,
+      discardWorkout,
+      submitWorkout,
+    ],
+  );
+
+  return <WorkoutContext.Provider value={contextValue}>{children}</WorkoutContext.Provider>;
 }
 
 export function useWorkout() {

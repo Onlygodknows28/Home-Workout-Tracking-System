@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -9,6 +10,36 @@ export function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Shared hook to observe an element's height on desktop (>= 1024px)
+ * so sibling columns can synchronize height cleanly.
+ */
+export function useDesktopHeightSync<T extends HTMLElement = HTMLDivElement>(deps: unknown[] = []) {
+  const ref = useRef<T>(null);
+  const [height, setHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      const nextHeight = window.innerWidth >= 1024 ? el.offsetHeight : null;
+      setHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(el);
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return [ref, height] as const;
 }
 
 let sharedAudioCtx: AudioContext | null = null;

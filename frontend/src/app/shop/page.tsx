@@ -4,49 +4,52 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useDataCache } from '../../context/DataCacheContext';
+import { useDataCache, CACHE_KEYS } from '../../context/DataCacheContext';
 import { ApiClient } from '../../lib/api';
-import { ShoppingBag, Coins, Shield, Package } from 'lucide-react';
+import { Coins, Shield } from 'lucide-react';
 import { getShopItemName, getShopItemDesc } from '../../lib/catalogTranslations';
 
 export default function ShopPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
+  const { user, isAuthenticated, isLoading, isAuthReady, refreshUser } = useAuth();
   const { t, language } = useLanguage();
-  const { getCache, setCache, isFresh, invalidate } = useDataCache();
+  const { getCache, setCache, isFresh, invalidate, isCacheHydrated } = useDataCache();
 
-  const [shopItems, setShopItems] = useState<any[]>(() => getCache('shop_items') || []);
-  const [inventory, setInventory] = useState<any[]>(() => getCache('shop_inventory') || []);
-  const [isDataLoading, setIsDataLoading] = useState(() => !getCache('shop_items'));
+  const [shopItems, setShopItems] = useState<any[]>(() => getCache(CACHE_KEYS.SHOP_ITEMS) || []);
+  const [inventory, setInventory] = useState<any[]>(
+    () => getCache(CACHE_KEYS.SHOP_INVENTORY) || [],
+  );
+  const [isDataLoading, setIsDataLoading] = useState(() => !getCache(CACHE_KEYS.SHOP_ITEMS));
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isAuthReady) return;
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated) {
+    if (isAuthenticated && isCacheHydrated) {
       loadShop();
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, isAuthReady, isCacheHydrated]);
 
   const loadShop = async (forceSpinner = false) => {
-    if (
-      !forceSpinner &&
-      isFresh('shop_items', 120000) &&
-      isFresh('shop_inventory', 60000)
-    ) {
-      setShopItems(getCache('shop_items') || []);
-      setInventory(getCache('shop_inventory') || []);
-      setIsDataLoading(false);
-      return;
-    }
+    const cachedItems = getCache<any[]>(CACHE_KEYS.SHOP_ITEMS);
+    const cachedInv = getCache<any[]>(CACHE_KEYS.SHOP_INVENTORY);
 
-    if (!getCache('shop_items') || forceSpinner) {
+    if (cachedItems && !forceSpinner) {
+      setShopItems(cachedItems);
+      if (cachedInv) setInventory(cachedInv);
+      setIsDataLoading(false);
+      if (isFresh(CACHE_KEYS.SHOP_ITEMS, 180000) && isFresh(CACHE_KEYS.SHOP_INVENTORY, 180000)) {
+        return;
+      }
+    } else if (forceSpinner) {
       setIsDataLoading(true);
     }
+
     try {
       const [items, userInv] = await Promise.all([
         ApiClient.getShopItems(),
@@ -54,11 +57,11 @@ export default function ShopPage() {
       ]);
       if (items) {
         setShopItems(items);
-        setCache('shop_items', items);
+        setCache(CACHE_KEYS.SHOP_ITEMS, items);
       }
       if (userInv) {
         setInventory(userInv);
-        setCache('shop_inventory', userInv);
+        setCache(CACHE_KEYS.SHOP_INVENTORY, userInv);
       }
     } catch (e) {
       console.error(e);
@@ -78,7 +81,7 @@ export default function ShopPage() {
       await ApiClient.buyShopItem(itemId);
       invalidate('shop_');
       await Promise.all([refreshUser(), loadShop(false)]);
-      setSuccessMsg(`🎉 ${itemName}`);
+      setSuccessMsg(`✓ ${itemName}`);
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e: any) {
       alert(e.message || 'Transaction failed');
@@ -90,156 +93,149 @@ export default function ShopPage() {
   if (isLoading || isDataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-center">
-        <div className="w-10 h-10 border-4 border-[#52B72B] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-500 font-bold">Loading FitCoin Shop...</p>
+        <div className="w-10 h-10 border-3 border-[#C42126] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-[#5C5C5C] font-semibold">Loading FitCoin Shop...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header & Wallet Hero */}
-      <div className="bg-[#1B3815] text-white border-2 border-[#2E4E26] rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center space-x-2">
-              <ShoppingBag className="w-5 h-5 text-[#FBBF24]" />
-              <span className="text-xs font-black uppercase tracking-wider text-[#FBBF24]">
-                {t('economyLoopBadge')}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">{t('shopHeaderTitle')}</h1>
-          </div>
-
-          <span className="bg-[#2E4E26] text-white text-xs font-black px-4 py-1.5 rounded-full self-start sm:self-auto">
-            {t('effortRewardConsume')}
+    <div className="max-w-[1220px] mx-auto px-5 sm:px-8 py-8 space-y-8">
+      {/* Open-Canvas Header & Wallet Telemetry (Zero outer card wrapper!) */}
+      <div className="pb-6 border-b border-[#D6D6D2] flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#C42126]">
+            {t('economyLoopBadge')}
           </span>
+          <h1 className="font-display text-[44px] sm:text-[52px] font-extrabold text-[#333333] leading-none mt-1">
+            {t('shopHeaderTitle')}
+          </h1>
+          <p className="text-xs text-[#5C5C5C] mt-1.5">{t('effortRewardConsume')}</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#2E4E26]">
-          <div className="bg-[#11240D] p-4 rounded-2xl border border-[#2E4E26] flex items-center justify-between">
-            <div>
-              <span className="text-xs text-white/70 block font-bold">{t('fitcoinBalance')}</span>
-              <div className="text-3xl font-black text-[#FBBF24] flex items-center space-x-2 mt-0.5">
-                <Coins className="w-7 h-7 fill-[#FBBF24]" />
-                <span>{user?.fitCoins || 0}</span>
-              </div>
+        {/* Flush 2-Column Hairline Balance Split */}
+        <div className="flex items-center divide-x divide-[#D6D6D2]">
+          <div className="pr-6">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5C5C] block">
+              {t('fitcoinBalance')}
+            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <Coins className="w-5 h-5 text-[#C42126]" />
+              <span className="font-display text-4xl font-extrabold text-[#333333] leading-none font-telemetry">
+                {user?.fitCoins || 0}
+              </span>
             </div>
-            <span className="text-xs text-white/60 font-bold uppercase">{t('earnedFromWorkouts')}</span>
           </div>
 
-          <div className="bg-[#11240D] p-4 rounded-2xl border border-[#2E4E26] flex items-center justify-between">
-            <div>
-              <span className="text-xs text-white/70 block font-bold">{t('streakFreezeBalance')}</span>
-              <div className="text-3xl font-black text-white flex items-center space-x-2 mt-0.5">
-                <Shield className="w-7 h-7 text-[#2563EB] fill-[#2563EB]" />
-                <span>{user?.streakFreezeCount || 0}</span>
-                <span className="text-sm font-bold text-white/70">{t('freezes')}</span>
-              </div>
+          <div className="pl-6">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5C5C] block">
+              {t('streakFreezeBalance')}
+            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <Shield className="w-5 h-5 text-[#2E7D32]" />
+              <span className="font-display text-4xl font-extrabold text-[#333333] leading-none font-telemetry">
+                {user?.streakFreezeCount || 0}
+              </span>
+              <span className="text-xs text-[#5C5C5C] font-semibold">{t('freezes')}</span>
             </div>
-            <span className="text-xs text-white/60 font-bold uppercase">{t('autoProtectsStreaks')}</span>
           </div>
         </div>
       </div>
 
       {successMsg && (
-        <div className="bg-[#EAF6E5] border-2 border-[#52B72B] rounded-2xl p-4 text-xs font-black text-[#1B3815] text-center">
+        <div className="bg-[#EBEBE6] border border-[#2E7D32] rounded-lg p-3.5 text-xs font-bold text-[#2E7D32] text-center">
           {successMsg}
         </div>
       )}
 
-      {/* Shop Catalog Grid */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-black text-[#1B3815] uppercase tracking-wider">
-          {t('shopItemsAvailable')} ({shopItems.length})
-        </h3>
+      {/* 12-Col Layout: 8 Cols Catalog Roster + 4 Cols Inventory */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+        {/* Left 8 Cols: Single-Layer Catalog Roster (Flush 1px Hairline Rows — Zero nested item cards!) */}
+        <div className="lg:col-span-8 bento-tile p-6 sm:p-8">
+          <div className="pb-4 border-b border-[#D6D6D2] flex items-baseline justify-between">
+            <h3 className="text-base font-bold text-[#333333] uppercase tracking-wider">
+              {t('shopItemsAvailable')} ({shopItems.length})
+            </h3>
+            <span className="text-xs text-[#5C5C5C]">{t('earnedFromWorkouts')}</span>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {shopItems.map((item) => {
-            const canAfford = (user?.fitCoins || 0) >= item.priceCoins;
-            const isBuying = buyingId === item.id;
-            const itemName = getShopItemName(item, language);
-            const itemDesc = getShopItemDesc(item, language);
+          <div className="divide-y divide-[#D6D6D2]">
+            {shopItems.map((item) => {
+              const canAfford = (user?.fitCoins || 0) >= item.priceCoins;
+              const isBuying = buyingId === item.id;
+              const itemName = getShopItemName(item, language);
+              const itemDesc = getShopItemDesc(item, language);
 
-            return (
-              <div
-                key={item.id}
-                className="bg-white border-2 border-[#D8EACF] hover:border-[#52B72B] rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-4 transition-all"
-              >
-                <div className="flex items-start space-x-4">
-                  <div className="w-16 h-16 rounded-2xl bg-[#EAF6E5] border border-[#D8EACF] flex items-center justify-center text-3xl shrink-0">
-                    {item.icon}
+              return (
+                <div
+                  key={item.id}
+                  className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="text-3xl shrink-0 mt-0.5">{item.icon}</span>
+                    <div>
+                      <h4 className="font-bold text-[#333333] text-base">{itemName}</h4>
+                      <p className="text-xs text-[#5C5C5C] mt-1 leading-relaxed">{itemDesc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-black text-[#1B3815] text-lg">{itemName}</h4>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed font-medium">
-                      {itemDesc}
+
+                  <div className="flex items-center justify-between sm:justify-end gap-5 shrink-0">
+                    <div className="text-right">
+                      <span className="font-display text-3xl font-extrabold text-[#C42126] font-telemetry leading-none">
+                        {item.priceCoins}
+                      </span>
+                      <span className="text-[11px] text-[#5C5C5C] font-semibold block">
+                        FitCoins
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleBuy(item.id, itemName, item.priceCoins)}
+                      disabled={!canAfford || isBuying}
+                      className={`px-5 py-2.5 rounded-lg font-semibold text-xs uppercase transition-colors cursor-pointer ${
+                        canAfford
+                          ? 'btn-cta-red'
+                          : 'bg-[#D6D6D2] text-[#5C5C5C] cursor-not-allowed'
+                      }`}
+                    >
+                      {isBuying ? '...' : canAfford ? t('buy1Tap') : t('notEnoughCoins')}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right 4 Cols: Single-Layer Inventory Tile (1px Hairline Rows) */}
+        <div className="lg:col-span-4 bento-tile p-6">
+          <div className="pb-4 border-b border-[#D6D6D2] flex items-baseline justify-between">
+            <h3 className="text-sm font-bold text-[#333333] uppercase tracking-wider">
+              {t('myInventory')} ({inventory.length})
+            </h3>
+            <span className="text-xs text-[#5C5C5C]">{t('autoProtectsStreaks')}</span>
+          </div>
+
+          {inventory.length > 0 ? (
+            <div className="divide-y divide-[#D6D6D2]">
+              {inventory.map((inv) => (
+                <div key={inv.id} className="py-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-2xl">{inv.item.icon}</span>
+                    <p className="text-sm font-semibold text-[#333333] truncate">
+                      {getShopItemName(inv.item, language)}
                     </p>
                   </div>
+                  <span className="font-telemetry text-sm font-bold text-[#2E7D32] shrink-0">
+                    ×{inv.quantity}
+                  </span>
                 </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-[#EAF6E5]">
-                  <div className="flex items-center space-x-1.5">
-                    <Coins className="w-5 h-5 text-[#D97706] fill-[#D97706]" />
-                    <span className="text-2xl font-black text-[#1B3815]">
-                      {item.priceCoins}
-                    </span>
-                    <span className="text-xs text-slate-500 font-bold">Coins</span>
-                  </div>
-
-                  <button
-                    onClick={() => handleBuy(item.id, itemName, item.priceCoins)}
-                    disabled={!canAfford || isBuying}
-                    className={`min-h-[48px] px-6 rounded-xl font-black text-xs uppercase transition-all flex items-center space-x-1.5 cursor-pointer ${
-                      canAfford
-                        ? 'bg-[#52B72B] hover:bg-[#469F24] text-white shadow-sm'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    {isBuying ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span>{canAfford ? t('buy1Tap') : t('notEnoughCoins')}</span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[#5C5C5C] text-center py-8">{t('emptyInventory')}</p>
+          )}
         </div>
-      </div>
-
-      {/* User Inventory Section */}
-      <div className="bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-        <div className="flex items-center space-x-2">
-          <Package className="w-5 h-5 text-[#52B72B]" />
-          <h3 className="text-sm font-black text-[#1B3815] uppercase tracking-wider">
-            {t('myInventory')} ({inventory.length})
-          </h3>
-        </div>
-
-        {inventory.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {inventory.map((inv) => (
-              <div
-                key={inv.id}
-                className="bg-[#FAFCF8] border border-[#D8EACF] rounded-2xl p-4 flex items-center space-x-3"
-              >
-                <span className="text-3xl">{inv.item.icon}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-extrabold text-[#1B3815] truncate">
-                    {getShopItemName(inv.item, language)}
-                  </p>
-                  <p className="text-xs text-[#52B72B] font-bold">{t('quantity')} x{inv.quantity}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 text-center py-4 font-medium">
-            {t('emptyInventory')}
-          </p>
-        )}
       </div>
     </div>
   );

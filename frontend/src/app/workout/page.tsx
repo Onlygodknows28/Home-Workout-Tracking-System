@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useDataCache } from '../../context/DataCacheContext';
+import { useDataCache, CACHE_KEYS } from '../../context/DataCacheContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { ApiClient } from '../../lib/api';
 import { GiantButton } from '../../components/ui/GiantButton';
@@ -15,72 +15,84 @@ import { getExerciseName, getWorkoutPlanTitle, getAiExplanation } from '../../li
 import {
   CheckCircle2,
   Clock,
-  Dumbbell,
   FastForward,
   Info,
   Play,
-  Sparkles,
+  Zap,
+  Trophy,
+  Shield,
 } from 'lucide-react';
 
 export default function WorkoutPlayerPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAuthReady } = useAuth();
   const { t, language } = useLanguage();
-  const { getCache, setCache, isFresh } = useDataCache();
+  const { getCache, setCache, isFresh, isCacheHydrated } = useDataCache();
 
   const {
     activeWorkout,
     elapsedSeconds,
-    remainingRestSeconds,
     isRestModalMinimized,
     minimizeRestModal,
-    addRestSeconds,
     startWorkout,
     completeSet,
     skipExercise,
-    completeRest,
+    discardWorkout,
     submitWorkout,
   } = useWorkout();
 
-  // If there is an ongoing workout, use its recommendation; otherwise use cached/fetched recommendation
   const [recommendation, setRecommendation] = useState<any>(() => {
     if (activeWorkout.isActive && activeWorkout.recommendation) {
       return activeWorkout.recommendation;
     }
-    return getCache('workout_plan') || getCache('home_rec');
+    return getCache(CACHE_KEYS.RECOMMENDATION);
   });
 
+  const [todayStatus, setTodayStatus] = useState<any>(() => getCache(CACHE_KEYS.TODAY_STATUS));
+  const [isStartingAuxiliary, setIsStartingAuxiliary] = useState(false);
+
   const [isDataLoading, setIsDataLoading] = useState(
-    () => !activeWorkout.isActive && !getCache('workout_plan') && !getCache('home_rec')
+    () => !activeWorkout.isActive && !getCache(CACHE_KEYS.RECOMMENDATION),
   );
 
   useEffect(() => {
+    if (!isAuthReady) return;
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && !activeWorkout.isActive) {
+    if (isAuthenticated && isCacheHydrated && !activeWorkout.isActive) {
       loadPlan();
     }
-  }, [isAuthenticated, isLoading, activeWorkout.isActive]);
+  }, [isAuthenticated, isLoading, isAuthReady, isCacheHydrated, activeWorkout.isActive]);
 
   const loadPlan = async (forceSpinner = false) => {
-    if (!forceSpinner && (isFresh('workout_plan', 60000) || isFresh('home_rec', 60000))) {
-      setRecommendation(getCache('workout_plan') || getCache('home_rec'));
+    const cachedRec = getCache(CACHE_KEYS.RECOMMENDATION);
+    const cachedStatus = getCache(CACHE_KEYS.TODAY_STATUS);
+    if (cachedStatus) setTodayStatus(cachedStatus);
+    if (cachedRec && !forceSpinner) {
+      setRecommendation(cachedRec);
       setIsDataLoading(false);
-      return;
-    }
-
-    if ((!getCache('workout_plan') && !getCache('home_rec')) || forceSpinner) {
+      if (isFresh(CACHE_KEYS.RECOMMENDATION, 180000) && isFresh(CACHE_KEYS.TODAY_STATUS, 180000)) {
+        return;
+      }
+    } else if (forceSpinner) {
       setIsDataLoading(true);
     }
+
     try {
-      const rec = await ApiClient.getDailyRecommendation();
+      const [rec, status] = await Promise.all([
+        ApiClient.getDailyRecommendation().catch(() => null),
+        ApiClient.getTodayStatus().catch(() => null),
+      ]);
       if (rec) {
         setRecommendation(rec);
-        setCache('workout_plan', rec);
-        setCache('home_rec', rec);
+        setCache(CACHE_KEYS.RECOMMENDATION, rec);
+      }
+      if (status) {
+        setTodayStatus(status);
+        setCache(CACHE_KEYS.TODAY_STATUS, status);
       }
     } catch {
       // safe
@@ -95,13 +107,23 @@ export default function WorkoutPlayerPage() {
     }
   };
 
+  const handleStartAuxiliaryWorkout = async () => {
+    setIsStartingAuxiliary(true);
+    try {
+      const auxPlan = await ApiClient.getAuxiliaryRecommendation();
+      if (auxPlan) {
+        startWorkout(auxPlan);
+      }
+    } catch (err) {
+      console.error('Failed to start auxiliary workout', err);
+    } finally {
+      setIsStartingAuxiliary(false);
+    }
+  };
+
   const handleCompleteSet = () => {
     completeSet();
   };
-
-  const handleRestComplete = React.useCallback(() => {
-    completeRest();
-  }, [completeRest]);
 
   const handleSkipExercise = () => {
     skipExercise();
@@ -114,14 +136,17 @@ export default function WorkoutPlayerPage() {
   if (isLoading || isDataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-center">
-        <div className="w-10 h-10 border-4 border-[#52B72B] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-500 font-bold">Setting up AI routine...</p>
+        <div className="w-10 h-10 border-3 border-[#C42126] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-[#5C5C5C] font-semibold">Setting up AI routine...</p>
       </div>
     );
   }
 
   const isStarted = activeWorkout.isActive;
-  const currentPlan = activeWorkout.isActive && activeWorkout.recommendation ? activeWorkout.recommendation : recommendation;
+  const currentPlan =
+    activeWorkout.isActive && activeWorkout.recommendation
+      ? activeWorkout.recommendation
+      : recommendation;
   const exercises = currentPlan?.exercises || [];
   const currentExerciseIndex = activeWorkout.currentExerciseIndex;
   const currentSet = activeWorkout.currentSet;
@@ -135,138 +160,334 @@ export default function WorkoutPlayerPage() {
     0,
   );
 
+  const hasWorkedOutToday = Boolean(todayStatus?.hasWorkedOutToday);
+  const todayWorkout = todayStatus?.todayWorkout;
+  const todayRpe = todayWorkout?.rpeScore;
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 select-none">
-      {/* 1. NOT STARTED: WORKOUT PREVIEW SCREEN */}
-      {!isStarted ? (
-        <div className="space-y-6">
-          {/* Header Card */}
-          <div className="bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-10 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="w-5 h-5 text-[#52B72B]" />
-              <span className="text-xs font-black text-[#52B72B] uppercase tracking-wider">
-                {recommendation?.adaptationType === 'PROGRESSION'
-                  ? t('progressionBadge')
-                  : recommendation?.adaptationType === 'REGRESSION'
-                  ? t('regressionBadge')
-                  : t('optimalBadge')}
+    <div className="max-w-[1080px] mx-auto px-5 sm:px-8 py-4 sm:py-5 space-y-4 select-none">
+      {/* 1A. DAY ALREADY COMPLETED: RECOVERY & OPTIONAL AUXILIARY FINISHER SCREEN */}
+      {!isStarted && hasWorkedOutToday ? (
+        <div className="space-y-5 max-w-2xl mx-auto py-2">
+          {/* Header Strip */}
+          <div className="pb-4 border-b border-[#D6D6D2] flex flex-col sm:flex-row sm:items-end justify-between gap-3 text-center sm:text-left">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-xs font-bold uppercase tracking-wider mb-2">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{t('workoutDayDoneBadge')}</span>
+              </div>
+              <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] leading-tight">
+                {t('workoutDayDoneTitle')}
+              </h1>
+              <p className="text-xs sm:text-sm text-[#5C5C5C] mt-1">
+                {t('workoutDayDoneSub')}
+              </p>
+            </div>
+            <div className="shrink-0 text-center sm:text-right">
+              <span className="text-[11px] text-[#5C5C5C] font-semibold uppercase block">
+                {t('streak')}
+              </span>
+              <span className="font-display text-3xl font-extrabold text-[#C42126] font-telemetry leading-none mt-1 block">
+                {todayStatus?.userStats?.currentStreak || 1} {t('days')}
+              </span>
+            </div>
+          </div>
+
+          {/* Completed Workout Summary Tile */}
+          <div className="bento-tile p-5 sm:p-6 space-y-4">
+            <div className="pb-2.5 border-b border-[#D6D6D2] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-[#C42126]" />
+                <h3 className="text-sm font-bold text-[#333333] uppercase tracking-wider">
+                  {t('workoutDayDoneSummary')}
+                </h3>
+              </div>
+              <span className="text-xs text-[#2E7D32] font-bold">
+                +{todayWorkout?.earnedXp || 120} XP • +{todayWorkout?.earnedCoins || 10} Coins
               </span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-black text-[#1B3815] leading-tight">
-              {getWorkoutPlanTitle(recommendation?.title, language) || t('aiTodayTitle')}
-            </h1>
+            {/* Telemetry Row */}
+            <div className="grid grid-cols-3 divide-x divide-[#D6D6D2] py-2 border-y border-[#D6D6D2] text-center">
+              <div className="pr-2">
+                <span className="text-[10px] text-[#5C5C5C] font-bold uppercase block">
+                  {t('workoutFinishedTime')}
+                </span>
+                <span className="font-display text-2xl font-extrabold text-[#333333] font-telemetry mt-0.5 block">
+                  {Math.max(1, Math.round((todayWorkout?.durationSeconds || 60) / 60))} {t('minutes')}
+                </span>
+              </div>
+              <div className="px-2">
+                <span className="text-[10px] text-[#5C5C5C] font-bold uppercase block">
+                  {t('workoutFinishedReps')}
+                </span>
+                <span className="font-display text-2xl font-extrabold text-[#333333] font-telemetry mt-0.5 block">
+                  {todayWorkout?.totalReps || totalCalculatedReps}
+                </span>
+              </div>
+              <div className="pl-2">
+                <span className="text-[10px] text-[#5C5C5C] font-bold uppercase block">
+                  {t('workoutDayDoneRpeLabel')}
+                </span>
+                <span className="font-display text-base font-extrabold text-[#C42126] font-telemetry mt-1 block">
+                  {todayRpe === 1
+                    ? `⚡ ${t('rpeEasyTitle')}`
+                    : todayRpe === 3
+                      ? `🛡️ ${t('rpeHardTitle')}`
+                      : `🎯 ${t('rpeOptimalTitle')}`}
+                </span>
+              </div>
+            </div>
 
-            <p className="text-sm text-[#2E4E26] bg-[#EAF6E5] p-4 rounded-2xl border border-[#D8EACF] leading-relaxed font-medium">
-              💡 {getAiExplanation(recommendation?.aiExplanation, recommendation?.adaptationType, language)}
+            <p className="text-xs text-[#5C5C5C]">
+              <strong className="text-[#333333]">
+                {todayWorkout?.workoutTitle || 'Calisthenics Hằng Ngày'}
+              </strong>{' '}
+              —{' '}
+              {todayRpe === 1
+                ? t('rpeEasySub')
+                : todayRpe === 3
+                  ? t('rpeHardSub')
+                  : t('rpeOptimalSub')}
             </p>
+          </div>
 
-            <div className="grid grid-cols-3 gap-3 pt-2 text-center">
-              <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                <span className="text-xs text-slate-500 block font-bold">{t('workoutFinishedTime')}</span>
-                <span className="text-base sm:text-lg font-black text-[#1B3815]">
+          {/* CONDITIONAL BLOCK: RPE === 1 (Quá Dễ) -> Show Auxiliary Finisher Session */}
+          {todayRpe === 1 ? (
+            <div className="bento-tile p-5 sm:p-6 space-y-4 border-2 border-[#C42126]/30 bg-[#FDE8E9]/25">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#C42126] text-white flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-xl font-extrabold text-[#333333] uppercase leading-tight">
+                    {t('auxiliaryFinisherTitle')}
+                  </h3>
+                  <p className="text-xs text-[#5C5C5C] mt-1 leading-relaxed">
+                    {t('auxiliaryFinisherSub')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <GiantButton
+                    variant="primary"
+                    size="large"
+                    icon={<Play className="w-5 h-5 fill-white" />}
+                    subtitle="3 bài tập cơ lõi • ~8-10 phút • Không áp lực khớp"
+                    onClick={handleStartAuxiliaryWorkout}
+                  >
+                    {isStartingAuxiliary ? t('auxiliaryLoadingBtn') : t('auxiliaryStartBtn')}
+                  </GiantButton>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push('/')}
+                  className="px-5 py-3 rounded-xl bg-[#EBEBE6] hover:bg-[#D6D6D2] text-[#333333] text-xs font-bold uppercase transition-colors cursor-pointer text-center"
+                >
+                  {t('returnDashboardBtn')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* CONDITIONAL BLOCK: RPE === 2 or 3 -> Show Recovery Protocol */
+            <div className="bento-tile p-5 sm:p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#2E7D32] text-white flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-extrabold text-[#333333] uppercase leading-tight">
+                    {t('recoveryRestTitle')}
+                  </h3>
+                  <p className="text-xs text-[#5C5C5C] mt-1 leading-relaxed">
+                    {todayRpe === 3
+                      ? t('recoveryRestAdviceHard')
+                      : t('recoveryRestAdviceOptimal')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <GiantButton
+                  variant="primary"
+                  size="large"
+                  onClick={() => router.push('/')}
+                >
+                  {t('returnDashboardBtn')}
+                </GiantButton>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  disabled={isStartingAuxiliary}
+                  onClick={handleStartAuxiliaryWorkout}
+                  className="text-[11px] text-[#5C5C5C] hover:text-[#C42126] font-semibold underline cursor-pointer"
+                >
+                  {isStartingAuxiliary
+                    ? t('auxiliaryLoadingBtn')
+                    : 'Tôi vẫn muốn tập thêm bài bổ trợ cơ lõi nhẹ nhàng'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : !isStarted ? (
+        /* 1B. NOT STARTED: WORKOUT PREVIEW SCREEN (Single-Layer Bento + 1px Hairline Rows) */
+        <div className="space-y-4">
+          {/* Open-Canvas Header + Single-Layer Telemetry Strip */}
+          <div className="pb-3.5 border-b border-[#D6D6D2] flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold text-[#C42126] uppercase tracking-wider">
+                {recommendation?.adaptationType === 'PROGRESSION'
+                  ? t('progressionBadge')
+                  : recommendation?.adaptationType === 'REGRESSION'
+                    ? t('regressionBadge')
+                    : t('optimalBadge')}
+              </span>
+              <h1 className="font-display text-[36px] sm:text-[42px] font-extrabold text-[#333333] leading-none mt-1">
+                {getWorkoutPlanTitle(recommendation?.title, language) || t('aiTodayTitle')}
+              </h1>
+            </div>
+
+            {/* Flush 3-Column Hairline Telemetry on Open Canvas (Zero nested cards!) */}
+            <div className="flex items-start divide-x divide-[#D6D6D2] text-left shrink-0">
+              <div className="pr-5">
+                <span className="text-[11px] text-[#5C5C5C] block font-semibold uppercase whitespace-nowrap">
+                  {t('workoutFinishedTime')}
+                </span>
+                <span className="font-display text-3xl font-extrabold text-[#333333] font-telemetry leading-none mt-1.5 block whitespace-nowrap">
                   {recommendation?.estimatedDurationMin} {t('minutes')}
                 </span>
               </div>
-              <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                <span className="text-xs text-slate-500 block font-bold">{t('exercisesList')}</span>
-                <span className="text-base sm:text-lg font-black text-[#1B3815]">
+              <div className="px-5">
+                <span className="text-[11px] text-[#5C5C5C] block font-semibold uppercase whitespace-nowrap">
+                  {t('exercisesList')}
+                </span>
+                <span className="font-display text-3xl font-extrabold text-[#333333] font-telemetry leading-none mt-1.5 block whitespace-nowrap">
                   {totalExercises}
                 </span>
               </div>
-              <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                <span className="text-xs text-slate-500 block font-bold">{t('xpEarned')}</span>
-                <span className="text-base sm:text-lg font-black text-[#52B72B]">
+              <div className="pl-5">
+                <span className="text-[11px] text-[#5C5C5C] block font-semibold uppercase whitespace-nowrap">
+                  {t('xpEarned')}
+                </span>
+                <span className="font-display text-3xl font-extrabold text-[#2E7D32] font-telemetry leading-none mt-1.5 block whitespace-nowrap">
                   +{recommendation?.totalEstimatedXp} XP
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Exercise List Grid */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-black text-[#1B3815] uppercase tracking-wider">
-              {t('exercisesList')} ({totalExercises})
-            </h3>
+          {/* Single-Layer Exercise Roster Tile (#EBEBE6 with 1px #D6D6D2 Hairline Rows) */}
+          <div className="bento-tile p-5 sm:p-6">
+            {/* Flush AI Adaptation Banner (#FDE8E9 & #C42126) */}
+            <div className="-mx-5 sm:-mx-6 -mt-5 sm:-mt-6 mb-3.5 px-5 sm:px-6 py-2.5 bg-[#FDE8E9] border-b border-[#D6D6D2] text-xs text-[#C42126] leading-relaxed">
+              <strong>AI Coach:</strong>{' '}
+              {getAiExplanation(
+                recommendation?.aiExplanation,
+                recommendation?.adaptationType,
+                language,
+                recommendation?.aiExplanationEn,
+              )}
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="pb-2.5 border-b border-[#D6D6D2] flex items-baseline justify-between">
+              <h3 className="text-sm font-bold text-[#333333] uppercase tracking-wider">
+                {t('exercisesList')} ({totalExercises})
+              </h3>
+              <span className="text-xs text-[#5C5C5C]">
+                {t('sets')} × {t('reps')}
+              </span>
+            </div>
+
+            {/* Flush 1px Hairline Rows (Zero nested exercise cards!) */}
+            <div className="divide-y divide-[#D6D6D2]">
               {exercises.map((ex: any, idx: number) => (
                 <div
                   key={`${ex.exerciseId || ex.slug || 'ex'}-${idx}`}
-                  className="bg-white border-2 border-[#D8EACF] rounded-2xl p-4 flex items-center justify-between space-x-3"
+                  className="py-2.5 flex items-center justify-between gap-4"
                 >
-                  <div className="flex items-center space-x-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-[#EAF6E5] text-[#52B72B] font-black text-sm flex items-center justify-center shrink-0 border border-[#52B72B]">
-                      {idx + 1}
-                    </div>
+                  <div className="flex items-baseline gap-4">
+                    <span className="font-telemetry text-sm font-bold text-[#C42126] w-6">
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
                     <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-extrabold text-[#1B3815] text-sm">{getExerciseName(ex, language)}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-[#333333] text-sm">
+                          {getExerciseName(ex, language)}
+                        </h4>
                         {ex.isProgression && (
-                          <span className="bg-[#FBBF24] text-[#1B3815] text-[10px] font-black px-1.5 py-0.2 rounded-md">
-                            {t('progressionTag')}
+                          <span className="text-[10px] font-bold text-[#2E7D32] uppercase">
+                            • {t('progressionTag')}
                           </span>
                         )}
                         {ex.isRegression && (
-                          <span className="bg-[#2563EB] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
-                            {t('recoveryTag')}
+                          <span className="text-[10px] font-bold text-[#C42126] uppercase">
+                            • {t('recoveryTag')}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-[#5C5C5C] mt-0.5">
                         {ex.equipment} • {ex.restSeconds}s rest
                       </p>
                     </div>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-sm font-black text-[#52B72B] block">
+                    <span className="font-telemetry text-base font-bold text-[#333333]">
                       {ex.sets} × {ex.reps}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-bold">{t('sets')} × {t('reps')}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Start Button */}
-          <GiantButton
-            variant="primary"
-            size="giant"
-            icon={<Play className="w-7 h-7 fill-white" />}
-            subtitle={language === 'vi' ? 'Sẵn sàng âm thanh & đồng hồ bấm giờ' : 'Audio cues & timers ready'}
-            onClick={handleStartWorkout}
-          >
-            {t('startWorkout1Tap')}
-          </GiantButton>
+            <div className="pt-3.5 border-t border-[#D6D6D2]">
+              <GiantButton
+                variant="primary"
+                size="large"
+                icon={<Play className="w-6 h-6 fill-white" />}
+                subtitle={
+                  language === 'vi'
+                    ? 'Sẵn sàng âm thanh & đồng hồ bấm giờ'
+                    : 'Audio cues & timers ready'
+                }
+                onClick={handleStartWorkout}
+              >
+                {t('startWorkout1Tap')}
+              </GiantButton>
+            </div>
+          </div>
         </div>
       ) : (
-        /* 2. ACTIVE WORKOUT MODE */
-        <div className="space-y-6 max-w-3xl mx-auto">
-          {/* Top Workout Status & Live Stopwatch */}
-          <div className="flex items-center justify-between bg-white border-2 border-[#D8EACF] rounded-2xl px-5 py-4 shadow-sm">
-            <div className="flex items-center space-x-2.5">
-              <Clock className="w-6 h-6 text-[#52B72B]" />
-              <span className="font-black text-2xl text-[#1B3815] font-mono">
+        /* 2. ACTIVE WORKOUT MODE (Single-Layer Surface + 1px Hairlines) */
+        <div className="space-y-6 max-w-2xl mx-auto">
+          {/* Open-Canvas Top Status & Stopwatch Bar */}
+          <div className="flex items-center justify-between pb-4 border-b border-[#D6D6D2]">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-5 h-5 text-[#C42126]" />
+              <span className="font-display text-4xl font-extrabold text-[#333333] font-telemetry">
                 {formatTime(elapsedSeconds)}
               </span>
             </div>
 
             <div className="text-right">
-              <span className="text-xs font-black text-slate-500">
+              <span className="text-xs font-bold text-[#5C5C5C]">
                 {t('exerciseOf')} {currentExerciseIndex + 1} / {totalExercises}
               </span>
-              <div className="flex space-x-1.5 mt-1">
+              <div className="flex gap-1.5 mt-1.5">
                 {exercises.map((_: any, i: number) => (
                   <div
                     key={i}
-                    className={`w-6 h-2 rounded-full ${
+                    className={`w-6 h-1.5 rounded-full ${
                       i < currentExerciseIndex
-                        ? 'bg-[#52B72B]'
+                        ? 'bg-[#2E7D32]'
                         : i === currentExerciseIndex
-                        ? 'bg-[#FBBF24]'
-                        : 'bg-slate-200'
+                          ? 'bg-[#C42126]'
+                          : 'bg-[#D6D6D2]'
                     }`}
                   />
                 ))}
@@ -274,60 +495,64 @@ export default function WorkoutPlayerPage() {
             </div>
           </div>
 
-          {/* Current Active Exercise Card */}
+          {/* Current Active Exercise Single-Layer Surface */}
           {currentEx && (
-            <div className="bg-white border-2 border-[#52B72B] rounded-3xl p-6 sm:p-10 shadow-sm space-y-6">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-[#52B72B] bg-[#EAF6E5] px-3.5 py-1 rounded-full border border-[#D8EACF]">
+            <div className="bento-tile p-6 sm:p-9 space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-[#D6D6D2]">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#C42126]">
                   {currentEx.primaryMuscle} • {currentEx.equipment}
                 </span>
-                <span className="text-xs font-black text-[#D97706]">
-                  Tier: {'⭐'.repeat(currentEx.difficulty)}
+                <span className="text-xs font-semibold text-[#5C5C5C]">
+                  Tier {currentEx.difficulty}
                 </span>
               </div>
 
               <div className="text-center py-2">
-                <h2 className="text-3xl sm:text-4xl font-black text-[#1B3815] leading-tight">
+                <h2 className="font-display text-4xl sm:text-5xl font-extrabold text-[#333333]">
                   {getExerciseName(currentEx, language)}
                 </h2>
                 {currentEx.adaptationNote && (
-                  <span className="inline-block text-xs font-black text-[#1B3815] bg-[#FBBF24] px-3.5 py-1 rounded-full mt-3">
-                    💡 {currentEx.adaptationNote}
-                  </span>
+                  <p className="text-xs font-semibold text-[#C42126] mt-2">
+                    {currentEx.adaptationNote}
+                  </p>
                 )}
               </div>
 
-              {/* Set Counter & Target Reps Highlight */}
-              <div className="grid grid-cols-2 gap-4 py-2">
-                <div className="bg-[#FAFCF8] border border-[#D8EACF] rounded-2xl p-5 text-center">
-                  <span className="text-xs font-black text-slate-500 uppercase">{t('currentSetLabel')}</span>
-                  <div className="text-4xl font-black text-[#1B3815] mt-1">
-                    {currentSet} <span className="text-base font-normal text-slate-400">/ {currentEx.sets}</span>
+              {/* Flush 2-Column Hairline Split for Current Set & Target Reps (Zero nested boxes!) */}
+              <div className="grid grid-cols-2 divide-x divide-[#D6D6D2] py-5 border-y border-[#D6D6D2] text-center">
+                <div className="pr-4">
+                  <span className="text-xs font-semibold text-[#5C5C5C] uppercase">
+                    {t('currentSetLabel')}
+                  </span>
+                  <div className="font-display text-5xl font-extrabold text-[#333333] mt-1 font-telemetry">
+                    {currentSet}{' '}
+                    <span className="text-xl font-normal text-[#5C5C5C]">/ {currentEx.sets}</span>
                   </div>
                 </div>
 
-                <div className="bg-[#EAF6E5] border border-[#52B72B] rounded-2xl p-5 text-center">
-                  <span className="text-xs font-black text-[#52B72B] uppercase">{t('targetRepsLabel')}</span>
-                  <div className="text-4xl font-black text-[#52B72B] mt-1">
-                    {currentEx.reps} <span className="text-base font-normal text-[#1B3815]">{t('reps')}</span>
+                <div className="pl-4">
+                  <span className="text-xs font-semibold text-[#C42126] uppercase">
+                    {t('targetRepsLabel')}
+                  </span>
+                  <div className="font-display text-5xl font-extrabold text-[#C42126] mt-1 font-telemetry">
+                    {currentEx.reps}{' '}
+                    <span className="text-xl font-normal text-[#333333]">{t('reps')}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Tip */}
-              <div className="bg-[#FAFCF8] rounded-2xl p-4 border border-[#D8EACF] flex items-start space-x-3 text-xs sm:text-sm text-slate-700 font-medium">
-                <Info className="w-5 h-5 text-[#52B72B] shrink-0 mt-0.5" />
-                <span>
-                  {t('formTip')}
-                </span>
+              {/* Form Tip inline text */}
+              <div className="flex items-start gap-2.5 text-xs text-[#5C5C5C]">
+                <Info className="w-4 h-4 text-[#C42126] shrink-0 mt-0.5" />
+                <span>{t('formTip')}</span>
               </div>
 
               {/* Complete Set Button */}
-              <div className="pt-2">
+              <div>
                 <GiantButton
-                  variant="success"
+                  variant="primary"
                   size="giant"
-                  icon={<CheckCircle2 className="w-8 h-8 fill-white" />}
+                  icon={<CheckCircle2 className="w-6 h-6" />}
                   subtitle={`Timer ${currentEx.restSeconds}s`}
                   onClick={handleCompleteSet}
                 >
@@ -335,17 +560,26 @@ export default function WorkoutPlayerPage() {
                 </GiantButton>
               </div>
 
-              {/* Skip */}
-              <div className="flex justify-between items-center pt-2">
-                <button
-                  onClick={handleSkipExercise}
-                  className="flex items-center space-x-1.5 text-xs font-bold text-slate-500 hover:text-[#1B3815] py-2 px-3 rounded-xl cursor-pointer"
-                >
-                  <FastForward className="w-4 h-4" />
-                  <span>{t('skipExercise')}</span>
-                </button>
+              {/* Skip & Discard Footer */}
+              <div className="flex justify-between items-center pt-3 border-t border-[#D6D6D2]">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handleSkipExercise}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-[#5C5C5C] hover:text-[#333333] cursor-pointer"
+                  >
+                    <FastForward className="w-4 h-4" />
+                    <span>{t('skipExercise')}</span>
+                  </button>
 
-                <span className="text-xs text-slate-500 font-bold">
+                  <button
+                    onClick={discardWorkout}
+                    className="text-xs font-semibold text-[#C42126] hover:underline cursor-pointer"
+                  >
+                    {t('discardWorkoutBtn')}
+                  </button>
+                </div>
+
+                <span className="text-xs text-[#5C5C5C] font-semibold">
                   {t('standardRest')} {currentEx.restSeconds}s
                 </span>
               </div>
@@ -354,7 +588,7 @@ export default function WorkoutPlayerPage() {
         </div>
       )}
 
-      {/* Rest Timer Overlay (Full Screen Modal) */}
+      {/* Rest Timer Overlay */}
       {isResting && !isRestModalMinimized && (
         <RestTimerOverlay
           nextExerciseName={currentEx ? getExerciseName(currentEx, language) : 'Next Exercise'}
@@ -368,10 +602,16 @@ export default function WorkoutPlayerPage() {
         isOpen={isCompleted}
         totalReps={totalCalculatedReps}
         durationSeconds={elapsedSeconds}
-        estimatedDurationMin={currentPlan?.estimatedDurationMin || 15}
         workoutTitle={getWorkoutPlanTitle(currentPlan?.title, language) || 'Home Workout Routine'}
         onSubmitRpe={handleSubmitWorkoutLog}
-        onFinishFlow={() => router.push('/')}
+        onFinishFlow={async () => {
+          discardWorkout();
+          const status = await ApiClient.getTodayStatus().catch(() => null);
+          if (status) {
+            setTodayStatus(status);
+            setCache(CACHE_KEYS.TODAY_STATUS, status);
+          }
+        }}
       />
     </div>
   );

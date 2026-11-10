@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { UserMinus, X } from 'lucide-react';
+import { formatPersonName } from '../../lib/catalogTranslations';
 
 interface UnpairConfirmModalProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ export function UnpairConfirmModal({
   onClose,
   onConfirm,
 }: UnpairConfirmModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -35,46 +36,59 @@ export function UnpairConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white border-2 border-rose-100 rounded-3xl p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
+      }}
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+    >
+      <div className="w-full max-w-md bg-[#F5F5F0] border border-[#D6D6D2] rounded-[14px] p-6 sm:p-7 text-[#333333] relative animate-in fade-in zoom-in-95 duration-200">
         {/* Close button */}
         <button
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-full bg-slate-50 border border-slate-200 cursor-pointer transition-colors"
+          className="absolute top-4 right-4 p-2 text-[#5C5C5C] hover:text-[#C42126] rounded-lg hover:bg-[#EBEBE6] cursor-pointer transition-colors"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal content */}
-        <div className="text-center py-2 space-y-4">
-          <div className="w-16 h-16 rounded-3xl bg-rose-50 border-2 border-rose-200 text-rose-600 mx-auto flex items-center justify-center shadow-inner">
-            <UserMinus className="w-8 h-8" />
+        <div className="text-center py-1 space-y-4">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-[#FDE8E9] border border-[#C42126]/30 text-[#C42126]">
+            <UserMinus className="w-5 h-5" />
           </div>
 
           <div className="space-y-1.5">
-            <h3 className="text-xl sm:text-2xl font-black text-[#1B3815]">
+            <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] uppercase tracking-tight leading-none">
               {t('unpairConfirmTitle')}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+            <p className="text-xs text-[#5C5C5C] leading-relaxed">
               {t('unpairConfirmDesc')}
             </p>
           </div>
 
-          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 text-xs text-rose-800 font-bold">
-            Bạn và <strong>{partnerName}</strong> sẽ hủy kết nối đồng hành và chuyển về trạng thái tự do để ghép với người khác.
+          <div className="bg-[#FDE8E9] border border-[#C42126]/25 rounded-lg p-3.5 text-xs text-[#C42126] font-medium">
+            {language === 'vi' ? (
+              <>
+                Bạn và <strong>{formatPersonName(partnerName, language)}</strong> sẽ hủy kết nối đồng hành và chuyển về trạng thái tự do để ghép với người khác.
+              </>
+            ) : (
+              <>
+                You and <strong>{formatPersonName(partnerName, language)}</strong> will unpair and become free to connect with another training partner.
+              </>
+            )}
           </div>
 
           {/* Buttons */}
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2.5 pt-1">
             <button
               onClick={handleConfirm}
               disabled={isSubmitting}
-              className="w-full min-h-[50px] px-5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-3 px-5 rounded-lg btn-cta-red font-semibold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
                   <UserMinus className="w-4 h-4" />
@@ -86,7 +100,7 @@ export function UnpairConfirmModal({
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="w-full min-h-[44px] px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase transition-colors cursor-pointer"
+              className="w-full py-2.5 px-5 rounded-lg bg-[#EBEBE6] hover:bg-[#D6D6D2]/70 text-[#333333] border border-[#D6D6D2] font-semibold text-xs uppercase tracking-wider transition-colors cursor-pointer"
             >
               {t('cancelBtn')}
             </button>

@@ -2,7 +2,12 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { Users, UserPlus, Check } from 'lucide-react';
+import { UserPlus, Check } from 'lucide-react';
+import {
+  formatPersonName,
+  getFitnessLevelLabel,
+  getGoalLabel,
+} from '../../lib/catalogTranslations';
 
 interface Candidate {
   userId: string;
@@ -21,7 +26,7 @@ interface RadarMatchmakerProps {
 }
 
 export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectedId, setConnectedId] = useState<string | null>(null);
 
@@ -33,55 +38,67 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
         setConnectedId(userId);
       }
     } catch {
-      // Bắt lỗi âm thầm, không dùng console.error để tránh bật overlay lỗi của Next.js
+      // Silent error handling
     } finally {
       setConnectingId(null);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Radar Visual Header */}
-      <div className="bg-[#EAF6E5] border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 text-center relative overflow-hidden">
-        <div className="relative z-10 max-w-xl mx-auto space-y-3">
-          <div className="w-14 h-14 rounded-full bg-[#52B72B] text-white mx-auto flex items-center justify-center shadow-md">
-            <Users className="w-7 h-7" />
-          </div>
-          <h3 className="text-xl sm:text-2xl font-black text-[#1B3815]">{t('radarHeaderTitle')}</h3>
-          <p className="text-xs sm:text-sm text-[#2E4E26] leading-relaxed font-medium">
-            {t('radarHeaderDesc')}
-          </p>
+    <div className="bento-tile p-6 sm:p-8">
+      {/* Editorial Roster Header */}
+      <div className="pb-4 border-b border-[#D6D6D2] flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-bold text-[#333333]">{t('radarHeaderTitle')}</h3>
+          <p className="text-xs text-[#5C5C5C] mt-0.5">{t('radarHeaderDesc')}</p>
         </div>
+        <span className="font-telemetry text-xs font-semibold text-[#C42126]">
+          Cosine Similarity Roster
+        </span>
       </div>
 
-      {/* Candidate List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {candidates.map((cand) => {
+      {/* Single-Layer Candidate Roster (Flush 1px #D6D6D2 Hairline Rows — Zero nested cards!) */}
+      <div className="divide-y divide-[#D6D6D2]">
+        {candidates.map((cand, idx) => {
           const isConnected = connectedId === cand.userId;
 
           return (
             <div
               key={cand.userId}
-              className="bg-white border-2 border-[#D8EACF] hover:border-[#52B72B] rounded-3xl p-5 shadow-sm transition-all flex items-center justify-between space-x-3"
+              className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
             >
-              <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="flex items-center gap-4 min-w-0">
+                {/* Unboxed Tabular Cosine Similarity Score */}
+                <span
+                  className={`font-display text-[38px] font-extrabold leading-none font-telemetry w-16 shrink-0 ${
+                    idx === 0 ? 'text-[#C42126]' : 'text-[#333333]'
+                  }`}
+                >
+                  {cand.similarityScore}%
+                </span>
+
                 <img
                   src={cand.avatar}
                   alt={cand.name}
-                  className="w-14 h-14 rounded-2xl border-2 border-[#52B72B] object-cover shrink-0 bg-[#F5FAF2]"
+                  className="w-11 h-11 rounded-full border border-[#D6D6D2] object-cover shrink-0 bg-[#F5F5F0]"
                 />
+
                 <div className="min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <h5 className="font-black text-[#1B3815] text-base truncate">{cand.name}</h5>
-                    <span className="bg-[#52B72B] text-white text-xs font-black px-2 py-0.5 rounded-full shrink-0">
-                      {cand.similarityScore}% {t('compatibility')}
+                  <div className="flex items-center gap-2">
+                    <h5 className="font-bold text-[#333333] text-base truncate">
+                      {formatPersonName(cand.name, language)}
+                    </h5>
+                    <span className="text-xs text-[#5C5C5C]">
+                      • {getFitnessLevelLabel(cand.fitnessLevel, language)}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 mt-0.5 truncate">
-                    BMI: <strong>{cand.bmi}</strong> • Test: <strong>{cand.pushupBaseline} reps</strong>
-                  </p>
-                  <p className="text-xs text-[#52B72B] font-bold truncate">
-                    {cand.primaryGoal}
+                  <p className="text-xs text-[#5C5C5C] mt-0.5 truncate">
+                    {t('goalLabel')}:{' '}
+                    <strong className="text-[#333333]">
+                      {getGoalLabel(cand.primaryGoal, language)}
+                    </strong>{' '}
+                    • BMI: <strong>{cand.bmi}</strong> • Push-up Test:{' '}
+                    <strong>{cand.pushupBaseline} reps</strong>
                   </p>
                 </div>
               </div>
@@ -89,20 +106,20 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
               <button
                 onClick={() => handleConnect(cand.userId)}
                 disabled={connectingId === cand.userId || isConnected}
-                className={`min-h-[48px] px-5 rounded-xl font-black text-xs shrink-0 transition-all flex items-center space-x-1.5 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-lg font-semibold text-xs shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer ${
                   isConnected
-                    ? 'bg-[#EAF6E5] text-[#1B3815] border border-[#52B72B]'
-                    : 'bg-[#1B3815] hover:bg-[#11240D] text-white'
+                    ? 'bg-[#2E7D32] text-[#FFFFFF]'
+                    : 'bg-[#333333] hover:bg-[#C42126] text-[#FFFFFF]'
                 }`}
               >
                 {isConnected ? (
                   <>
-                    <Check className="w-4 h-4 text-[#52B72B]" />
+                    <Check className="w-3.5 h-3.5" />
                     <span>{t('pairedBtn')}</span>
                   </>
                 ) : (
                   <>
-                    <UserPlus className="w-4 h-4" />
+                    <UserPlus className="w-3.5 h-3.5" />
                     <span>{t('pairBtn')}</span>
                   </>
                 )}
@@ -112,8 +129,8 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
         })}
 
         {candidates.length === 0 && (
-          <div className="col-span-2 text-center py-10 text-slate-500 bg-white rounded-3xl border border-[#D8EACF]">
-            <p className="text-sm font-bold">{t('radarScanning')}</p>
+          <div className="text-center py-10 text-[#5C5C5C]">
+            <p className="text-sm font-semibold">{t('radarScanning')}</p>
           </div>
         )}
       </div>

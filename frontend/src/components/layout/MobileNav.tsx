@@ -11,10 +11,6 @@ export function MobileNav() {
   const pathname = usePathname();
   const { t } = useLanguage();
 
-  if (pathname === '/workout/active') {
-    return null;
-  }
-
   const navItems = [
     { href: '/', label: t('navHome'), icon: Home },
     { href: '/workout', label: t('navWorkouts'), icon: Dumbbell },
@@ -24,7 +20,7 @@ export function MobileNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0D1309]/95 backdrop-blur-xl border-t border-white/10 shadow-2xl pb-safe">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#F5F5F0]/95 backdrop-blur-md border-t border-[#D6D6D2] pb-safe">
       <div className="flex items-center justify-around px-2 py-1.5">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -34,15 +30,16 @@ export function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               className={cn(
-                'flex flex-col items-center justify-center min-h-[52px] min-w-[58px] rounded-xl transition-all select-none px-2',
+                'flex flex-col items-center justify-center min-h-[50px] min-w-[58px] rounded-lg transition-colors select-none px-2',
                 isActive
-                  ? 'text-[#C8F135] font-black bg-[#C8F135]/12 border border-[#C8F135]/25'
-                  : 'text-[#8E9688] hover:text-white font-bold',
+                  ? 'text-[#C42126] font-bold'
+                  : 'text-[#5C5C5C] hover:text-[#333333] font-medium',
               )}
             >
               <Icon className={cn('w-5 h-5', isActive && 'stroke-[2.5]')} />
-              <span className="text-[10px] mt-0.5 tracking-tight font-extrabold">{item.label}</span>
+              <span className="text-[10px] mt-0.5 tracking-tight font-semibold">{item.label}</span>
             </Link>
           );
         })}

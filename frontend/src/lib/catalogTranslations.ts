@@ -54,181 +54,37 @@ export const SHOP_ITEMS_I18N: Record<string, LocalizedItem> = {
   },
 };
 
-export const EXERCISES_I18N: Record<string, LocalizedItem> = {
-  'wall-pushup': {
-    name: { vi: 'Chống Đẩy Tường', en: 'Wall Push-Up' },
-    description: {
-      vi: 'Biến thể khởi đầu an toàn, giảm áp lực cổ tay và khớp vai.',
-      en: 'Beginner-friendly variation reducing wrist and shoulder pressure.',
-    },
-  },
-  'knee-pushup': {
-    name: { vi: 'Chống Đẩy Quỳ Gối', en: 'Knee Push-Up' },
-    description: {
-      vi: 'Bài tập nhập môn xây dựng lực đẩy ngực và tay sau.',
-      en: 'Introductory drill building chest and triceps pushing strength.',
-    },
-  },
-  'standard-pushup': {
-    name: { vi: 'Chống Đẩy Tiêu Chuẩn', en: 'Standard Push-Up' },
-    description: {
-      vi: 'Bài tập nền tảng kinh điển phát triển cơ ngực, vai trước và tay sau.',
-      en: 'Classic foundational movement targeting chest, shoulders, and triceps.',
-    },
-  },
-  'diamond-pushup': {
-    name: { vi: 'Chống Đẩy Kim Cương', en: 'Diamond Push-Up' },
-    description: {
-      vi: 'Tập trung cao độ vào ngực trong và toàn bộ cơ tam đầu bắp tay sau.',
-      en: 'Intense focus on inner chest fibers and full triceps activation.',
-    },
-  },
-  'decline-pushup': {
-    name: { vi: 'Chống Đẩy Dốc Chân Lên Ghế', en: 'Decline Push-Up' },
-    description: {
-      vi: 'Sử dụng ghế kê chân để dồn trọng lực vào phần ngực trên và cơ vai.',
-      en: 'Elevated feet on a chair shifting resistance to upper chest and shoulders.',
-    },
-  },
-  'chair-squat': {
-    name: { vi: 'Ngồi Ghế Đứng Dậy', en: 'Chair Box Squat' },
-    description: {
-      vi: 'Biến thể cực êm cho khớp gối, học chuyển động bản lề hông chính xác.',
-      en: 'Joint-friendly variation mastering clean hip hinge mechanics.',
-    },
-  },
-  'bodyweight-squat': {
-    name: { vi: 'Squat Tự Thân', en: 'Bodyweight Squat' },
-    description: {
-      vi: 'Phát triển đùi trước, đùi sau và cơ mông săn chắc.',
-      en: 'Develops quadriceps, hamstrings, and toned glutes.',
-    },
-  },
-  'bulgarian-split-squat': {
-    name: { vi: 'Squat 1 Chân Kê Ghế', en: 'Bulgarian Split Squat' },
-    description: {
-      vi: 'Cô lập từng bên chân với sự hỗ trợ của ghế sinh hoạt, kích thích cơ đùi tối đa.',
-      en: 'Unilateral leg isolation on a chair maximizing quad and glute hypertrophy.',
-    },
-  },
-  'glute-bridge': {
-    name: { vi: 'Cầu Mông Trên Thảm', en: 'Glute Bridge' },
-    description: {
-      vi: 'Không gây áp lực lên đầu gối, kích hoạt mạnh mẽ chuỗi cơ sau.',
-      en: 'Zero knee impact exercise strongly activating posterior chain muscles.',
-    },
-  },
-  'single-leg-bridge': {
-    name: { vi: 'Cầu Mông 1 Chân', en: 'Single-Leg Glute Bridge' },
-    description: {
-      vi: 'Gấp đôi cường độ cho nhóm cơ mông và đùi sau, khắc phục mất cân bằng.',
-      en: 'Double intensity glute isolation fixing muscular imbalances.',
-    },
-  },
-  'backpack-squat': {
-    name: { vi: 'Squat Tải Trọng Balo', en: 'Backpack Weighted Squat' },
-    description: {
-      vi: 'Tận dụng balo chứa sách hoặc chai nước để tăng tải trọng tại gia.',
-      en: 'Progressive overload using a loaded backpack with books or water bottles.',
-    },
-  },
-  'towel-door-row': {
-    name: { vi: 'Kéo Khăn Cửa Phòng', en: 'Towel Door Row' },
-    description: {
-      vi: 'Tận dụng khăn tắm quàng qua nắm cửa phòng để kéo phát triển cơ xô lưng.',
-      en: 'Door towel pulling movement targeting lats and upper back muscles.',
-    },
-  },
-  'table-inverted-row': {
-    name: { vi: 'Hít Kéo Dưới Bàn Ăn', en: 'Table Inverted Row' },
-    description: {
-      vi: 'Chuyển động kéo xô lưng Calisthenics mạnh mẽ sử dụng cạnh bàn ăn.',
-      en: 'Powerful calisthenics horizontal pull using a sturdy dining table.',
-    },
-  },
-  'doorframe-row': {
-    name: { vi: 'Kéo Khung Cửa 1 Tay', en: 'Single-Arm Doorframe Row' },
-    description: {
-      vi: 'Bám vào mép khung cửa để tập luyện cơ lưng từng bên không cần tạ.',
-      en: 'Unilateral back pull gripping a doorframe without equipment.',
-    },
-  },
-  'chair-dips': {
-    name: { vi: 'Chống Đẩy Nhún Ghế', en: 'Chair Tricep Dips' },
-    description: {
-      vi: 'Sử dụng mép ghế để cô lập bắp tay sau và ngực dưới.',
-      en: 'Chair edge dips isolating triceps and lower chest fibers.',
-    },
-  },
-  'bottle-lateral-raise': {
-    name: { vi: 'Dang Vai Chai Nước', en: 'Water Bottle Lateral Raise' },
-    description: {
-      vi: 'Dùng 2 chai nước làm tạ nhẹ để tạo hình cầu vai săn chắc và rộng.',
-      en: 'Water bottles used as light dumbbells for shoulder cap sculpting.',
-    },
-  },
-  'pike-pushup': {
-    name: { vi: 'Chống Đẩy Vai Chữ V', en: 'Pike Push-Up' },
-    description: {
-      vi: 'Biến thể nâng cao chuyển toàn bộ trọng lực cơ thể lên nhóm cơ vai.',
-      en: 'Advanced inverted pushup transferring full load to shoulder deltoids.',
-    },
-  },
-  'forearm-plank': {
-    name: { vi: 'Plank Cẳng Tay', en: 'Forearm Plank' },
-    description: {
-      vi: 'Bài tập gồng lõi tĩnh củng cố cột sống và bảo vệ cổ tay hoàn hảo.',
-      en: 'Static core isometric drill stabilizing spine with zero wrist strain.',
-    },
-  },
-  'hollow-body-hold': {
-    name: { vi: 'Gồng Lõi Thuyền Nan', en: 'Hollow Body Hold' },
-    description: {
-      vi: 'Kỹ thuật thể dục dụng cụ kích hoạt toàn bộ nhóm cơ bụng sâu.',
-      en: 'Gymnastics core shape engaging the deepest abdominal wall.',
-    },
-  },
-  'dead-bug': {
-    name: { vi: 'Bọ Ngửa Kiểm Soát', en: 'Dead Bug' },
-    description: {
-      vi: 'Bài tập phục hồi cốt lõi an toàn tuyệt đối cho lưng dưới.',
-      en: 'Safe core recovery pattern protecting lower lumbar spine.',
-    },
-  },
-  'bird-dog': {
-    name: { vi: 'Chim Chó Giữ Thăng Bằng', en: 'Bird Dog' },
-    description: {
-      vi: 'Tăng cường sức mạnh cơ dựng sống lưng và độ ổn định hông.',
-      en: 'Strengthens erector spinae and improves pelvic stability.',
-    },
-  },
-  'mountain-climbers': {
-    name: { vi: 'Leo Núi Tại Chỗ', en: 'Mountain Climbers' },
-    description: {
-      vi: 'Tăng nhịp tim, đốt cháy calo mãnh liệt và rèn luyện cơ lõi linh hoạt.',
-      en: 'Metabolic calorie burner boosting heart rate and dynamic core agility.',
-    },
-  },
-  'burpees': {
-    name: { vi: 'Burpees Đốt Mỡ Cường Độ Cao', en: 'High-Intensity Burpees' },
-    description: {
-      vi: 'Bài tập toàn thân tiêu hao năng lượng tối đa, tăng thể lực bùng nổ.',
-      en: 'Full-body explosive conditioning drill maximizing energy expenditure.',
-    },
-  },
+export const EXERCISES_I18N: Record<string, { vi: string; en: string }> = {
+  'wall-pushup': { vi: 'Chống Đẩy Tường', en: 'Wall Push-Up' },
+  'knee-pushup': { vi: 'Chống Đẩy Quỳ Gối', en: 'Knee Push-Up' },
+  'standard-pushup': { vi: 'Chống Đẩy Tiêu Chuẩn', en: 'Standard Push-Up' },
+  'diamond-pushup': { vi: 'Chống Đẩy Kim Cương', en: 'Diamond Push-Up' },
+  'decline-pushup': { vi: 'Chống Đẩy Dốc Chân Lên Ghế', en: 'Decline Push-Up' },
+  'chair-squat': { vi: 'Ngồi Ghế Đứng Dậy', en: 'Chair Box Squat' },
+  'bodyweight-squat': { vi: 'Squat Tự Thân', en: 'Bodyweight Squat' },
+  'bulgarian-split-squat': { vi: 'Squat 1 Chân Kê Ghế', en: 'Bulgarian Split Squat' },
+  'glute-bridge': { vi: 'Cầu Mông Trên Thảm', en: 'Glute Bridge' },
+  'single-leg-bridge': { vi: 'Cầu Mông 1 Chân', en: 'Single-Leg Glute Bridge' },
+  'backpack-squat': { vi: 'Squat Tải Trọng Balo', en: 'Backpack Weighted Squat' },
+  'towel-door-row': { vi: 'Kéo Khăn Cửa Phòng', en: 'Towel Door Row' },
+  'table-inverted-row': { vi: 'Hít Kéo Dưới Bàn Ăn', en: 'Table Inverted Row' },
+  'doorframe-row': { vi: 'Kéo Khung Cửa 1 Tay', en: 'Single-Arm Doorframe Row' },
+  'chair-dips': { vi: 'Chống Đẩy Nhún Ghế', en: 'Chair Tricep Dips' },
+  'bottle-lateral-raise': { vi: 'Dang Vai Chai Nước', en: 'Water Bottle Lateral Raise' },
+  'pike-pushup': { vi: 'Chống Đẩy Vai Chữ V', en: 'Pike Push-Up' },
+  'forearm-plank': { vi: 'Plank Cẳng Tay', en: 'Forearm Plank' },
+  'hollow-body-hold': { vi: 'Gồng Lõi Thuyền Nan', en: 'Hollow Body Hold' },
+  'dead-bug': { vi: 'Bọ Ngửa Kiểm Soát', en: 'Dead Bug' },
+  'bird-dog': { vi: 'Chim Chó Giữ Thăng Bằng', en: 'Bird Dog' },
+  'mountain-climbers': { vi: 'Leo Núi Tại Chỗ', en: 'Mountain Climbers' },
+  'burpees': { vi: 'Burpees Đốt Mỡ Cường Độ Cao', en: 'High-Intensity Burpees' },
 };
 
-/**
- * Remove parenthetical comments (e.g. "(Standard Push-Up)", "(Wall Push-Up)")
- */
 export function cleanParentheses(text: string): string {
   if (!text) return '';
   return text.replace(/\s*\([^)]*\)/g, '').trim();
 }
 
-/**
- * Localize shop item name
- */
 export function getShopItemName(item: { id?: string; name?: string }, language: Language): string {
   if (!item) return '';
   const mapped = item.id ? SHOP_ITEMS_I18N[item.id] : undefined;
@@ -238,9 +94,6 @@ export function getShopItemName(item: { id?: string; name?: string }, language: 
   return cleanParentheses(item.name || '');
 }
 
-/**
- * Localize shop item description
- */
 export function getShopItemDesc(item: { id?: string; description?: string }, language: Language): string {
   if (!item) return '';
   const mapped = item.id ? SHOP_ITEMS_I18N[item.id] : undefined;
@@ -250,141 +103,95 @@ export function getShopItemDesc(item: { id?: string; description?: string }, lan
   return cleanParentheses(item.description || '');
 }
 
-/**
- * Localize exercise name
- */
-export function getExerciseName(exercise: { id?: string; slug?: string; name?: string }, language: Language): string {
+export function getExerciseName(
+  exercise: { id?: string; slug?: string; name?: string } | null | undefined,
+  language: Language,
+): string {
   if (!exercise) return '';
   const slugOrId = exercise.slug || (exercise.id?.replace(/^ex-/, '')) || '';
   const mapped = EXERCISES_I18N[slugOrId] || (exercise.id ? EXERCISES_I18N[exercise.id] : undefined);
   if (mapped) {
-    return mapped.name[language] || mapped.name.vi;
+    return mapped[language] || mapped.vi;
   }
   return cleanParentheses(exercise.name || '');
 }
 
-/**
- * Localize exercise description
- */
-export function getExerciseDesc(exercise: { id?: string; slug?: string; description?: string }, language: Language): string {
-  if (!exercise) return '';
-  const slugOrId = exercise.slug || (exercise.id?.replace(/^ex-/, '')) || '';
-  const mapped = EXERCISES_I18N[slugOrId] || (exercise.id ? EXERCISES_I18N[exercise.id] : undefined);
-  if (mapped && mapped.description) {
-    return mapped.description[language] || mapped.description.vi;
-  }
-  return cleanParentheses(exercise.description || '');
-}
-
-/**
- * Clean & localize workout plan title
- */
 export function getWorkoutPlanTitle(title: string | undefined, language: Language): string {
   if (!title) return '';
   const cleaned = cleanParentheses(title);
   if (language === 'vi') return cleaned;
 
-  // Translate standard workout titles to clean English
-  if (cleaned.includes('Đốt Mỡ Toàn Thân')) {
-    return cleaned.replace('Đốt Mỡ Toàn Thân', 'Full-Body Calorie Burn')
+  const translatePrefix = (str: string) =>
+    str
       .replace('⚡ Tăng Tốc: ', '⚡ Accelerated: ')
       .replace('🛡️ Phục Hồi & Kiểm Soát: ', '🛡️ Recovery & Control: ')
       .replace('🔥 Giáo Án Thể Lực: ', '🔥 Fitness Routine: ');
+
+  if (cleaned.includes('Đốt Mỡ Toàn Thân')) {
+    return translatePrefix(cleaned.replace('Đốt Mỡ Toàn Thân', 'Full-Body Calorie Burn'));
   }
   if (cleaned.includes('Phát Triển Cơ Bắp Tại Nhà')) {
-    return cleaned.replace('Phát Triển Cơ Bắp Tại Nhà', 'Home Muscle Hypertrophy')
-      .replace('⚡ Tăng Tốc: ', '⚡ Accelerated: ')
-      .replace('🛡️ Phục Hồi & Kiểm Soát: ', '🛡️ Recovery & Control: ')
-      .replace('🔥 Giáo Án Thể Lực: ', '🔥 Fitness Routine: ');
+    return translatePrefix(cleaned.replace('Phát Triển Cơ Bắp Tại Nhà', 'Home Muscle Hypertrophy'));
   }
   if (cleaned.includes('Sức Bền & Thể Lực Vượt Trội')) {
-    return cleaned.replace('Sức Bền & Thể Lực Vượt Trội', 'Stamina & Athletic Endurance')
-      .replace('⚡ Tăng Tốc: ', '⚡ Accelerated: ')
-      .replace('🛡️ Phục Hồi & Kiểm Soát: ', '🛡️ Recovery & Control: ')
-      .replace('🔥 Giáo Án Thể Lực: ', '🔥 Fitness Routine: ');
+    return translatePrefix(cleaned.replace('Sức Bền & Thể Lực Vượt Trội', 'Stamina & Athletic Endurance'));
   }
   if (cleaned.includes('Vận Động Toàn Diện & Khớp Linh Hoạt')) {
-    return cleaned.replace('Vận Động Toàn Diện & Khớp Linh Hoạt', 'Full Mobility & Joint Health')
-      .replace('⚡ Tăng Tốc: ', '⚡ Accelerated: ')
-      .replace('🛡️ Phục Hồi & Kiểm Soát: ', '🛡️ Recovery & Control: ')
-      .replace('🔥 Giáo Án Thể Lực: ', '🔥 Fitness Routine: ');
+    return translatePrefix(cleaned.replace('Vận Động Toàn Diện & Khớp Linh Hoạt', 'Full Mobility & Joint Health'));
   }
   return cleaned;
 }
 
-/**
- * Localize AI Rationale Explanation
- */
 export function getAiExplanation(
   explanation: string | undefined,
   adaptationType: string | undefined,
-  language: Language
+  language: Language,
+  explanationEn?: string,
 ): string {
-  const isRegression =
-    adaptationType === 'REGRESSION' ||
-    explanation?.includes('Quá Sức') ||
-    explanation?.includes('Đuối') ||
-    explanation?.includes('Regression');
+  const cleanTag = (text: string) => text.replace(/\[HYBRID-AI\]\s*/g, '').trim();
 
-  const isProgression =
-    adaptationType === 'PROGRESSION' ||
-    explanation?.includes('Quá Dễ') ||
-    explanation?.includes('Progression');
-
-  const isCalibration =
-    adaptationType === 'INITIAL_CALIBRATION' ||
-    explanation?.includes('khởi đầu') ||
-    explanation?.includes('baseline');
+  if (language === 'en' && explanationEn) {
+    return cleanTag(explanationEn);
+  }
+  if (language === 'vi' && explanation) {
+    return cleanTag(explanation);
+  }
 
   if (language === 'vi') {
-    if (isRegression) {
+    if (adaptationType === 'REGRESSION') {
       return 'Buổi tập trước bạn cảm thấy Quá Sức. AI tự động giảm tải an toàn, chuyển sang biến thể nhẹ hơn và tăng thời gian nghỉ ngơi để hồi phục cơ bắp.';
     }
-    if (isProgression) {
+    if (adaptationType === 'PROGRESSION') {
       return 'Buổi tập trước bạn đánh giá Quá Dễ. AI tự động nâng cấp biến thể bài tập và tăng 15% số lần lặp lại để kích thích cơ bắp phát triển.';
     }
-    if (isCalibration) {
+    if (adaptationType === 'INITIAL_CALIBRATION') {
       return 'Hệ thống phân tích thể lực khởi đầu và loại trừ an toàn các vùng chấn thương để thiết lập giáo án cá nhân hóa.';
     }
     return 'Buổi tập trước bạn hoàn thành ở mức Vừa Sức. AI giữ nguyên biến thể chuẩn và tăng nhẹ 1 lần lặp lại để duy trì quá tải lũy tiến.';
   }
 
-  // English translation (100% clean English, no Vietnamese or parentheses)
-  if (isRegression) {
+  if (adaptationType === 'REGRESSION') {
     return 'You felt overexerted in your last workout. AI automatically scaled down to safe exercise regressions and extended rest intervals for muscle recovery.';
   }
-  if (isProgression) {
+  if (adaptationType === 'PROGRESSION') {
     return 'You rated your last workout as Easy. AI automatically upgraded exercise variations and increased reps by 15% to stimulate muscle growth.';
   }
-  if (isCalibration) {
+  if (adaptationType === 'INITIAL_CALIBRATION') {
     return 'System analyzed your baseline fitness and excluded all injured joint areas to construct a safe, personalized routine.';
   }
   return 'You achieved optimal exertion in your last workout. AI maintained standard variations and added 1 rep to sustain progressive overload.';
 }
 
-/**
- * Localize Co-op Mission Title
- */
-export function getMissionTitle(title: string | undefined, language: Language): string {
-  if (language === 'vi') {
-    return 'Đồng Lòng Vượt Ngưỡng 100 Reps';
-  }
-  return 'Synergy Threshold 100 Reps';
+export function getMissionTitle(_title: string | undefined, language: Language): string {
+  return language === 'vi' ? 'Đồng Lòng Vượt Ngưỡng 100 Reps' : 'Synergy Threshold 100 Reps';
 }
 
-/**
- * Localize Co-op Mission Description
- */
-export function getMissionDesc(description: string | undefined, language: Language): string {
-  if (language === 'vi') {
-    return 'Cả hai bạn cùng tập luyện và đóng góp tổng cộng ít nhất 100 reps hôm nay.';
-  }
-  return 'Both partners train together and contribute at least 100 total reps today.';
+export function getMissionDesc(_description: string | undefined, language: Language): string {
+  return language === 'vi'
+    ? 'Cả hai bạn cùng tập luyện và đóng góp tổng cộng ít nhất 100 reps hôm nay.'
+    : 'Both partners train together and contribute at least 100 total reps today.';
 }
 
-/**
- * Localize Fitness Level
- */
 export function getFitnessLevelLabel(level: string | undefined, language: Language): string {
   if (!level) return '';
   const upper = level.toUpperCase();
@@ -406,26 +213,192 @@ export function getFitnessLevelLabel(level: string | undefined, language: Langua
   }
 }
 
-/**
- * Localize Primary Goal
- */
-export function getGoalLabel(goal: string | undefined, language: Language): string {
+export function getGoalLabel(
+  goal: string | undefined,
+  language: Language,
+  variant: 'short' | 'long' = 'short',
+): string {
   if (!goal) return '';
   const upper = goal.toUpperCase();
   if (language === 'vi') {
+    if (variant === 'long') {
+      switch (upper) {
+        case 'FAT_LOSS': return 'Giảm Mỡ & Săn Chắc';
+        case 'MUSCLE_GAIN': return 'Tăng Cơ & Sức Mạnh';
+        case 'ENDURANCE': return 'Tăng Sức Bền Tim Mạch';
+        case 'MOBILITY': return 'Linh Hoạt & Phục Hồi Khớp';
+        default: return 'Duy Trì Thể Lực Toàn Diện';
+      }
+    }
     switch (upper) {
       case 'FAT_LOSS': return 'Giảm mỡ';
       case 'MUSCLE_GAIN': return 'Tăng cơ';
       case 'ENDURANCE': return 'Sức bền';
+      case 'MOBILITY': return 'Linh hoạt & Phục hồi';
+      case 'MAINTENANCE':
       case 'GENERAL_FITNESS': return 'Thể lực tổng hợp';
       default: return goal;
+    }
+  }
+
+  if (variant === 'long') {
+    switch (upper) {
+      case 'FAT_LOSS': return 'Fat Loss & Conditioning';
+      case 'MUSCLE_GAIN': return 'Muscle & Strength Gain';
+      case 'ENDURANCE': return 'Endurance & Stamina';
+      case 'MOBILITY': return 'Mobility & Joint Recovery';
+      default: return 'Balanced Fitness Maintenance';
     }
   }
   switch (upper) {
     case 'FAT_LOSS': return 'Fat Loss';
     case 'MUSCLE_GAIN': return 'Muscle Gain';
     case 'ENDURANCE': return 'Endurance';
+    case 'MOBILITY': return 'Mobility & Recovery';
+    case 'MAINTENANCE':
     case 'GENERAL_FITNESS': return 'General Fitness';
     default: return goal;
   }
+}
+
+const INJURY_LABELS: Record<string, { vi: string; en: string }> = {
+  WRIST: { vi: 'Cổ tay', en: 'Wrist' },
+  KNEE: { vi: 'Đầu gối', en: 'Knee' },
+  SHOULDER: { vi: 'Bả vai', en: 'Shoulder' },
+  LOWER_BACK: { vi: 'Lưng dưới', en: 'Lower Back' },
+  NECK: { vi: 'Cổ', en: 'Neck' },
+  ELBOW: { vi: 'Khuỷu tay', en: 'Elbow' },
+  ANKLE: { vi: 'Cổ chân', en: 'Ankle' },
+};
+
+export function formatInjuryBadge(rawInjury: string, language: Language): string {
+  if (!rawInjury) return '';
+  const trimmed = rawInjury.trim();
+  if (trimmed.toUpperCase().startsWith('OTHER:')) {
+    const customText = trimmed.slice(6).replace(/;/g, ',').trim();
+    if (!customText) return language === 'vi' ? 'Sức khỏe khác' : 'Other condition';
+    return language === 'vi' ? `Khác (${customText})` : `Other (${customText})`;
+  }
+  const upper = trimmed.toUpperCase();
+  const mapped = INJURY_LABELS[upper];
+  if (mapped) {
+    return mapped[language];
+  }
+  return trimmed;
+}
+
+export function formatInjuryList(injuries: string[] | undefined, language: Language): string {
+  if (!injuries || injuries.length === 0) return '';
+  return injuries
+    .map((item) => formatInjuryBadge(item, language))
+    .filter(Boolean)
+    .join(' • ');
+}
+
+export function removeVietnameseDiacritics(str: string): string {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+const VIETNAMESE_NAME_TOKENS: Record<string, string> = {
+  pham: 'Phạm',
+  tung: 'Tùng',
+  phong: 'Phong',
+  nguyen: 'Nguyễn',
+  tran: 'Trần',
+  le: 'Lê',
+  huynh: 'Huỳnh',
+  hoang: 'Hoàng',
+  phan: 'Phan',
+  vu: 'Vũ',
+  vo: 'Võ',
+  dang: 'Đặng',
+  bui: 'Bùi',
+  do: 'Đỗ',
+  ho: 'Hồ',
+  ngo: 'Ngô',
+  duong: 'Dương',
+  ly: 'Lý',
+  trinh: 'Trịnh',
+  dinh: 'Đinh',
+  doan: 'Đoàn',
+  luong: 'Lương',
+  phuong: 'Phương',
+  duc: 'Đức',
+  tuan: 'Tuấn',
+  huy: 'Huy',
+  khanh: 'Khánh',
+  thao: 'Thảo',
+  linh: 'Linh',
+  minh: 'Minh',
+  anh: 'Anh',
+  hung: 'Hùng',
+  dung: 'Dũng',
+  cuong: 'Cường',
+  thang: 'Thắng',
+  thanh: 'Thành',
+  dat: 'Đạt',
+  phat: 'Phát',
+  kiet: 'Kiệt',
+  khoa: 'Khoa',
+  long: 'Long',
+  nam: 'Nam',
+  quan: 'Quân',
+  son: 'Sơn',
+  tam: 'Tâm',
+  thien: 'Thiên',
+  thinh: 'Thịnh',
+  tien: 'Tiến',
+  toan: 'Toàn',
+  trung: 'Trung',
+  truong: 'Trường',
+  viet: 'Việt',
+  vinh: 'Vĩnh',
+  vy: 'Vy',
+  ngoc: 'Ngọc',
+  uyen: 'Uyên',
+  quynh: 'Quỳnh',
+  trang: 'Trang',
+  hien: 'Hiền',
+  huong: 'Hương',
+  ha: 'Hà',
+  hai: 'Hải',
+  han: 'Hân',
+  hieu: 'Hiếu',
+  nghia: 'Nghĩa',
+  nhan: 'Nhân',
+  phuc: 'Phúc',
+  loc: 'Lộc',
+  tai: 'Tài',
+};
+
+export function formatPersonName(name: string | undefined, language: Language): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+
+  if (language === 'en') {
+    return removeVietnameseDiacritics(trimmed);
+  }
+
+  if (removeVietnameseDiacritics(trimmed) !== trimmed) {
+    return trimmed;
+  }
+
+  return trimmed
+    .split(/\s+/)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      const mapped = VIETNAMESE_NAME_TOKENS[lower];
+      if (!mapped) return word;
+      if (word === word.toUpperCase() && word.length > 1) {
+        return mapped.toUpperCase();
+      }
+      return mapped;
+    })
+    .join(' ');
 }

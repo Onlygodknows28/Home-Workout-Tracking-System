@@ -3,15 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --background: #0A0E07;
-  --foreground: #FFFFFF;
-  --volt: #C8F135;
-  --volt-hover: #D6F858;
-  --bg-obsidian: #0A0E07;
-  --bg-olive-surface: #12180D;
-  --bg-card-glass: rgba(23, 30, 17, 0.78);
-  --border-glass: rgba(255, 255, 255, 0.12);
-  --border-volt: rgba(200, 241, 53, 0.45);
+  /* Tông nền - Trắng ngà */
+  --color-background-primary: #F5F5F0;   /* Nền chính ứng dụng */
+  --color-background-secondary: #EBEBE6; /* Nền của các thẻ (Card 1 lớp) */
+
+  /* Văn bản & Cấu trúc - Than chì */
+  --color-text-primary: #333333;         /* Chữ tiêu đề, thông tin chính */
+  --color-text-secondary: #5C5C5C;       /* Chữ phụ, mô tả */
+  --color-border: #D6D6D2;               /* Viền của các khối & đường kẻ 1px */
+
+  /* Điểm nhấn & Cảnh báo - Đỏ */
+  --color-accent-primary: #C42126;       /* Nút CTA chính (Ví dụ: "Bắt đầu tập") */
+  --color-accent-hover: #A3191E;         /* Trạng thái khi di chuột vào nút Đỏ */
+  --color-warning-light: #FDE8E9;        /* Nền cho cảnh báo nhẹ (Ví dụ: báo chấn thương) */
+  --color-warning-text: #C42126;         /* Chữ trong thông báo cảnh báo */
+
+  /* Các màu hỗ trợ */
+  --color-success: #2E7D32;              /* Màu xanh lá (Checkmark hoàn thành, +18%) */
+  --color-white: #FFFFFF;                /* Dùng cho text nằm trên nền Đỏ hoặc Than chì */
+
+  --background: var(--color-background-primary);
+  --foreground: var(--color-text-primary);
 }
 
 html {
@@ -19,8 +31,11 @@ html {
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--color-text-primary);
+  background-color: var(--color-background-primary);
+  background-image:
+    radial-gradient(ellipse 48% 44% at 50% 30%, rgba(253, 232, 233, 0.55) 0%, rgba(245, 245, 240, 0) 70%),
+    radial-gradient(ellipse 45% 40% at 15% 15%, rgba(235, 235, 230, 0.85) 0%, rgba(245, 245, 240, 0) 70%);
   font-family: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
@@ -29,7 +44,8 @@ body {
 .font-display {
   font-family: var(--font-barlow-condensed), sans-serif;
   text-transform: uppercase;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
 }
 
 .font-telemetry {
@@ -38,57 +54,66 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* Radial Volt Spotlight behind Hero Athlete */
-.volt-spotlight {
-  background: radial-gradient(
-    circle at 50% 44%,
-    rgba(195, 240, 48, 0.24) 0%,
-    rgba(120, 165, 22, 0.10) 36%,
-    rgba(10, 14, 7, 0) 70%
-  );
+/* IMPECCABLE RULE: Declare elevation ONCE. Card radii stay at 12-16px (14px). Zero nested cards. */
+.bento-tile {
+  background-color: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-/* Smooth Edge Masking for Extracted Photography */
-.hero-photo-mask {
-  -webkit-mask-image: radial-gradient(ellipse 78% 82% at 50% 48%, #000 58%, transparent 100%);
-  mask-image: radial-gradient(ellipse 78% 82% at 50% 48%, #000 58%, transparent 100%);
-}
-
-/* Frosted Glass HUD Card */
-.glass-hud {
-  background: rgba(24, 32, 17, 0.76);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-/* Bottom Feature Card Surface */
-.feature-card {
-  background: linear-gradient(135deg, rgba(28, 37, 20, 0.92) 0%, rgba(16, 21, 11, 0.96) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
-  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.feature-card:hover {
-  border-color: rgba(200, 241, 53, 0.45);
+.bento-tile-interactive:hover {
+  border-color: #B8B8B2;
   transform: translateY(-2px);
-  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.6), 0 0 24px rgba(200, 241, 53, 0.08);
 }
 
-/* Pill Button with Embedded Circle Arrow */
-.volt-pill-btn {
-  background: #C8F135;
-  color: #0B0F07;
-  transition: all 0.2s ease;
-  box-shadow: 0 8px 28px rgba(200, 241, 53, 0.25);
+/* Single-Layer Frosted HUD Card */
+.hud-glass {
+  background: rgba(245, 245, 240, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
 }
 
-.volt-pill-btn:hover {
-  background: #D6F858;
+/* Primary Crimson CTA Button */
+.btn-cta-red {
+  background-color: var(--color-accent-primary);
+  color: var(--color-white);
+  transition: background-color 0.18s ease, transform 0.15s ease;
+}
+
+.btn-cta-red:hover {
+  background-color: var(--color-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 12px 34px rgba(200, 241, 53, 0.38);
+}
+
+/* Secondary Outline Graphite Button */
+.btn-outline-graphite {
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.btn-outline-graphite:hover {
+  background-color: var(--color-background-secondary);
+  border-color: var(--color-text-secondary);
+}
+
+/* Seamless Right-Hand Photo Fade Inside Bottom Bento Tiles */
+.tile-photo-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.32) 24%, rgba(0, 0, 0, 0.92) 58%, black 100%);
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.32) 24%, rgba(0, 0, 0, 0.92) 58%, black 100%);
+  filter: contrast(1.03) brightness(1.03) saturate(0.96);
+}
+
+/* Orbital 1px Circle */
+.orbital-ring {
+  border: 1px solid var(--color-border);
+  border-radius: 9999px;
 }
 
 @layer utilities {
@@ -97,21 +122,78 @@ body {
   }
 }
 
-/* Custom subtle dark scrollbar */
+/* Clean Ivory & Graphite Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0A0E07;
+  background: #F5F5F0;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #232F19;
+  background: #D6D6D2;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C8F135;
+  background: #C42126;
 }
+
+/* Custom sleek scrollbar for internal exercise list scroll */
+.exercise-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.exercise-scroll::-webkit-scrollbar-track {
+  background: #E2E2DC;
+  border-radius: 9999px;
+}
+
+.exercise-scroll::-webkit-scrollbar-thumb {
+  background: #C42126;
+  border-radius: 9999px;
+}
+
+/* Custom Range Slider for Ivory & Crimson Theme */
+.onboarding-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: #D6D6D2;
+  outline: none;
+  cursor: pointer;
+}
+
+.onboarding-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #C42126;
+  border: 3px solid #F5F5F0;
+  box-shadow: 0 2px 6px rgba(196, 33, 38, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.onboarding-slider::-webkit-slider-thumb:hover {
+  background: #A3191E;
+  transform: scale(1.08);
+}
+
+.onboarding-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #C42126;
+  border: 3px solid #F5F5F0;
+  box-shadow: 0 2px 6px rgba(196, 33, 38, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+

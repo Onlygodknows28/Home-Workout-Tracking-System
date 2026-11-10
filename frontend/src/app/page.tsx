@@ -6,9 +6,17 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useDataCache, CACHE_KEYS } from '../context/DataCacheContext';
+import { useWorkout } from '../context/WorkoutContext';
 import { ApiClient } from '../lib/api';
-import { getExerciseName, getWorkoutPlanTitle, getAiExplanation } from '../lib/catalogTranslations';
-import { GiantButton } from '../components/ui/GiantButton';
+import { useDesktopHeightSync } from '../lib/utils';
+import {
+  getExerciseName,
+  getWorkoutPlanTitle,
+  getAiExplanation,
+  formatPersonName,
+  getFitnessLevelLabel,
+  getGoalLabel,
+} from '../lib/catalogTranslations';
 import { CoopMissionCard } from '../components/buddy/CoopMissionCard';
 import { GiftFreezeModal } from '../components/buddy/GiftFreezeModal';
 import {
@@ -20,19 +28,17 @@ import {
   Utensils,
   Shield,
   Users,
-  ArrowRight,
-  ArrowUpRight,
   ChevronRight,
   Zap,
   Target,
   Activity,
-  Heart,
 } from 'lucide-react';
 
 export default function HomePage() {
   const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const { language, t } = useLanguage();
-  const { getCache, setCache, isFresh, invalidate, prewarmAllTabs } = useDataCache();
+  const { getCache, setCache, isFresh, invalidate, prewarmAllTabs, isCacheHydrated } = useDataCache();
+  const { activeWorkout, discardWorkout } = useWorkout();
   const router = useRouter();
 
   const [todayStatus, setTodayStatus] = useState<any>(() => getCache(CACHE_KEYS.TODAY_STATUS));
@@ -40,553 +46,525 @@ export default function HomePage() {
   const [buddyData, setBuddyData] = useState<any>(() => getCache(CACHE_KEYS.BUDDY_DATA));
   const [checkingIn, setCheckingIn] = useState(false);
   const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+  const [sprintBpm, setSprintBpm] = useState(false);
+  const [rightColRef, rightColHeight] = useDesktopHeightSync([
+    isAuthenticated,
+    user,
+    todayStatus,
+    buddyData,
+    language,
+  ]);
 
   const loadHomeData = async (forceRefresh = false) => {
     if (!isAuthenticated) return;
 
-    // If all 3 home cache entries are fresh, sync state from memory in 0ms and skip network calls
+    // Immediately show any cached data available (Stale-While-Revalidate)
+    const cachedStatus = getCache(CACHE_KEYS.TODAY_STATUS);
+    const cachedRec = getCache(CACHE_KEYS.RECOMMENDATION);
+    const cachedBuddy = getCache(CACHE_KEYS.BUDDY_DATA);
+    if (cachedStatus) setTodayStatus(cachedStatus);
+    if (cachedRec) setRecommendation(cachedRec);
+    if (cachedBuddy) setBuddyData(cachedBuddy);
+
     if (
       !forceRefresh &&
-      isFresh(CACHE_KEYS.TODAY_STATUS, 30000) &&
-      isFresh(CACHE_KEYS.RECOMMENDATION, 60000) &&
-      isFresh(CACHE_KEYS.BUDDY_DATA, 45000)
+      isFresh(CACHE_KEYS.TODAY_STATUS, 180000) &&
+      isFresh(CACHE_KEYS.RECOMMENDATION, 180000) &&
+      isFresh(CACHE_KEYS.BUDDY_DATA, 180000)
     ) {
-      setTodayStatus(getCache(CACHE_KEYS.TODAY_STATUS));
-      setRecommendation(getCache(CACHE_KEYS.RECOMMENDATION));
-      setBuddyData(getCache(CACHE_KEYS.BUDDY_DATA));
       prewarmAllTabs();
       return;
     }
 
-    try {
-      const [statusRes, recRes, buddyRes] = await Promise.all([
-        ApiClient.getTodayStatus(),
-        ApiClient.getDailyRecommendation(),
-        ApiClient.getMyBuddy(),
-      ]);
-      setTodayStatus(statusRes);
-      setRecommendation(recRes);
-      setBuddyData(buddyRes);
-      setCache(CACHE_KEYS.TODAY_STATUS, statusRes);
-      setCache(CACHE_KEYS.RECOMMENDATION, recRes);
-      setCache(CACHE_KEYS.BUDDY_DATA, buddyRes);
-      prewarmAllTabs();
-    } catch {
-      // Silently ignore unauthenticated or initial load errors
-    }
+    // Stream each widget independently so no single query blocks the rest
+    await Promise.allSettled([
+      ApiClient.getTodayStatus().then((statusRes) => {
+        if (statusRes) {
+          setTodayStatus(statusRes);
+          setCache(CACHE_KEYS.TODAY_STATUS, statusRes);
+        }
+      }),
+      ApiClient.getDailyRecommendation().then((recRes) => {
+        if (recRes) {
+          setRecommendation(recRes);
+          setCache(CACHE_KEYS.RECOMMENDATION, recRes);
+        }
+      }),
+      ApiClient.getMyBuddy().then((buddyRes) => {
+        if (buddyRes) {
+          setBuddyData(buddyRes);
+          setCache(CACHE_KEYS.BUDDY_DATA, buddyRes);
+        }
+      }),
+    ]);
+    prewarmAllTabs();
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && isCacheHydrated) {
       loadHomeData(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isCacheHydrated]);
 
   const handleNutritionCheckIn = async (
     calorieState: 'DEFICIT' | 'MAINTENANCE' | 'SURPLUS',
   ) => {
-    if (checkingIn) return;
+    const alreadyCheckedIn = Boolean(
+      todayStatus?.hasCheckedInToday ||
+        todayStatus?.nutritionDone ||
+        todayStatus?.todayCheckin?.calorieType ||
+        todayStatus?.checkIn?.calorieStatus,
+    );
+    if (checkingIn || alreadyCheckedIn) return;
+
     setCheckingIn(true);
+    const previousStatus = todayStatus;
+    const optimisticStatus = {
+      ...(todayStatus || {}),
+      hasCheckedInToday: true,
+      nutritionDone: true,
+      todayCheckin: {
+        ...(todayStatus?.todayCheckin || {}),
+        calorieType: calorieState,
+      },
+    };
+    setTodayStatus(optimisticStatus);
+    setCache(CACHE_KEYS.TODAY_STATUS, optimisticStatus);
+
     try {
-      await ApiClient.submitCheckin({
+      const res = await ApiClient.submitCheckin({
         calorieType: calorieState,
         energyLevel: 4,
       });
-      invalidate(CACHE_KEYS.TODAY_STATUS);
+      const confirmedStatus = {
+        ...optimisticStatus,
+        todayCheckin: res?.checkin || optimisticStatus.todayCheckin,
+      };
+      setTodayStatus(confirmedStatus);
+      setCache(CACHE_KEYS.TODAY_STATUS, confirmedStatus);
       invalidate('profile_');
       await refreshUser();
-      await loadHomeData(true);
     } catch (err: any) {
-      alert(err.message);
+      // If backend says already checked in today, fetch fresh status to lock UI
+      try {
+        const freshStatus = await ApiClient.getTodayStatus();
+        if (freshStatus) {
+          setTodayStatus(freshStatus);
+          setCache(CACHE_KEYS.TODAY_STATUS, freshStatus);
+        } else {
+          setTodayStatus(previousStatus);
+        }
+      } catch {
+        setTodayStatus(previousStatus);
+      }
     } finally {
       setCheckingIn(false);
     }
   };
 
   const handleStartWorkout = () => {
+    if (activeWorkout.isCompleted) {
+      discardWorkout();
+    }
     router.push('/workout');
   };
 
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#C8F135] border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-3 border-[#C42126] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   // =========================================================================
-  // CASE 1: GUEST LANDING PAGE (FITVANT ATHLETIC DARK & VOLT LIME SYSTEM)
+  // CASE 1: GUEST LANDING PAGE (IMPECCABLE SINGLE-LAYER IVORY & CRIMSON UI)
   // =========================================================================
   if (!isAuthenticated) {
     return (
       <div className="w-full space-y-20 pb-16 overflow-x-hidden">
-        {/* 1. FITVANT 3-ZONE HERO SECTION + BENTO CARDS */}
-        <section id="hero" className="relative w-full pt-4 pb-6">
-          {/* Ambient Background Glows */}
-          <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[640px] volt-spotlight opacity-90 z-0" />
-          <div
-            className="pointer-events-none absolute top-[18%] right-[-8%] w-[480px] h-[480px] rounded-full opacity-25 z-0"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(200,241,53,0.32) 0%, transparent 70%)',
-            }}
-          />
+        {/* 1. FITVANT OPEN HERO STAGE + 3 BOTTOM BENTO TILES */}
+        <section id="hero" className="relative w-full pt-6">
+          <div className="max-w-[1220px] mx-auto px-5 sm:px-8">
+            {/* MAIN 3-ZONE OPEN HERO STAGE (Zero outer card, central photo removed per user request) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[400px] relative">
+              {/* LEFT ZONE (6 Cols): Pure Monumental Typography + Unboxed 4-Item Feature Strip */}
+              <div className="lg:col-span-6 z-10 flex flex-col justify-between">
+                <div>
+                  <h1 className="font-display text-[68px] sm:text-[84px] font-extrabold text-[#333333] tracking-tight leading-[0.9] mb-4 select-none">
+                    {language === 'vi' ? (
+                      <>
+                        MẠNH MẼ
+                        <br />
+                        MỖI NGÀY
+                      </>
+                    ) : (
+                      <>
+                        STRONGER
+                        <br />
+                        EVERY DAY
+                      </>
+                    )}
+                  </h1>
 
-          <div className="relative z-10 max-w-[1280px] mx-auto px-4 sm:px-8">
-            {/* MAIN 3-ZONE HERO STAGE */}
-            <div className="relative grid grid-cols-1 lg:grid-cols-12 items-center min-h-[540px] pt-2 pb-8 gap-8 lg:gap-0">
-              {/* LEFT ZONE (5 Cols): Headline + CTA + 4-Icon Strip */}
-              <div className="lg:col-span-5 z-20 space-y-5">
-                {/* Pill Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#192310]/90 border border-[#C8F135]/35">
-                  <span className="w-2 h-2 rounded-full bg-[#C8F135] shadow-[0_0_8px_#C8F135]" />
-                  <span className="text-[11px] font-extrabold tracking-[0.14em] text-[#C8F135] uppercase">
-                    {language === 'vi' ? 'TẬP THÔNG MINH HƠN' : 'TRAIN SMARTER'}
-                  </span>
+                  <p className="text-[#5C5C5C] text-[15px] leading-relaxed max-w-[400px] mb-7 font-normal">
+                    {t('heroDescription')}
+                  </p>
+
+                  {/* Dual CTA Buttons */}
+                  <div className="flex flex-wrap items-center gap-3.5 mb-12">
+                    <Link
+                      href="/register"
+                      className="px-7 py-3.5 rounded-lg btn-cta-red font-semibold text-sm cursor-pointer"
+                    >
+                      {language === 'vi' ? 'Bắt đầu ngay' : 'Get Started'}
+                    </Link>
+
+                    <Link
+                      href="/workout"
+                      className="px-6 py-3.5 rounded-lg btn-outline-graphite font-semibold text-sm flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5 text-[#C42126]" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                      <span>{t('exploreWorkoutsBtn')}</span>
+                    </Link>
+                  </div>
                 </div>
 
-                {/* Stacked Condensed Display Headline */}
-                <h1 className="font-display font-black text-[68px] sm:text-[84px] xl:text-[94px] leading-[0.88] tracking-tight uppercase select-none">
-                  <span className="block text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.6)]">
-                    {language === 'vi' ? 'MẠNH MẼ' : 'STRONGER'}
-                  </span>
-                  <span className="block text-[#C8F135] drop-shadow-[0_0_28px_rgba(200,241,53,0.22)]">
-                    {language === 'vi' ? 'MỖI NGÀY' : 'EVERY DAY'}
-                  </span>
-                </h1>
-
-                {/* Subtitle */}
-                <p className="text-[15px] text-[#B4BDAD] font-medium max-w-[390px] leading-relaxed pt-1">
-                  {t('heroDescription')}
-                </p>
-
-                {/* Primary Volt Pill CTA + Secondary Explore Link */}
-                <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/register"
-                    className="volt-pill-btn rounded-full pl-7 pr-2 py-2 inline-flex items-center gap-4 font-extrabold text-[13px] tracking-wider uppercase cursor-pointer"
-                  >
-                    <span>
-                      {language === 'vi' ? 'BẮT ĐẦU HÀNH TRÌNH' : 'START YOUR JOURNEY'}
-                    </span>
-                    <span className="w-9 h-9 rounded-full bg-[#0B0F07] text-[#C8F135] flex items-center justify-center">
-                      <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
-                    </span>
-                  </Link>
-
+                {/* 4-ITEM FEATURE STRIP ON OPEN CANVAS (Bare vector icons + 1px vertical hairlines #D6D6D2 — ZERO boxes!) */}
+                <div className="pt-4 border-t border-[#D6D6D2] grid grid-cols-2 sm:grid-cols-4 gap-y-4">
                   <Link
                     href="/workout"
-                    className="px-5 py-3.5 rounded-full bg-[#141C0F] hover:bg-[#1C2715] text-white/90 hover:text-white border border-white/12 text-xs font-extrabold uppercase tracking-wider transition-colors"
+                    className="flex items-center gap-2.5 pr-3 sm:border-r sm:border-[#D6D6D2] group"
                   >
-                    {t('exploreWorkoutsBtn')}
-                  </Link>
-                </div>
-
-                {/* 4-Icon Quick Feature Strip (Matching FITVANT Reference) */}
-                <div className="pt-5 flex items-center gap-5 sm:gap-6 border-t border-white/10 max-w-[420px]">
-                  <Link href="/workout" className="flex items-center gap-2 group cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg bg-[#1A2412] border border-white/10 flex items-center justify-center text-[#C8F135] group-hover:bg-[#C8F135] group-hover:text-[#0B0F07] transition-colors">
-                      <Dumbbell className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-semibold text-[#C2C9BC] group-hover:text-white">
-                      {language === 'vi' ? 'Bài tập' : 'Workouts'}
+                    <Dumbbell className="w-4 h-4 text-[#C42126] shrink-0" />
+                    <span className="text-[11px] leading-[1.25] font-medium text-[#5C5C5C] group-hover:text-[#333333]">
+                      {language === 'vi' ? 'Giáo án' : 'Personalized'}
+                      <br />
+                      <strong className="font-semibold text-[#333333]">
+                        {language === 'vi' ? 'Cá nhân hóa' : 'Workouts'}
+                      </strong>
                     </span>
                   </Link>
 
-                  <Link href="/register" className="flex items-center gap-2 group cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg bg-[#1A2412] border border-white/10 flex items-center justify-center text-[#C8F135] group-hover:bg-[#C8F135] group-hover:text-[#0B0F07] transition-colors">
-                      <Utensils className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-semibold text-[#C2C9BC] group-hover:text-white">
-                      {language === 'vi' ? 'Dinh dưỡng' : 'Nutrition'}
+                  <Link
+                    href="/register"
+                    className="flex items-center gap-2.5 sm:px-3 sm:border-r sm:border-[#D6D6D2] group"
+                  >
+                    <Utensils className="w-4 h-4 text-[#C42126] shrink-0" />
+                    <span className="text-[11px] leading-[1.25] font-medium text-[#5C5C5C] group-hover:text-[#333333]">
+                      {language === 'vi' ? 'Kế hoạch' : 'Nutrition'}
+                      <br />
+                      <strong className="font-semibold text-[#333333]">
+                        {language === 'vi' ? 'Dinh dưỡng' : 'Plans'}
+                      </strong>
                     </span>
                   </Link>
 
-                  <Link href="/#features" className="flex items-center gap-2 group cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg bg-[#1A2412] border border-white/10 flex items-center justify-center text-[#C8F135] group-hover:bg-[#C8F135] group-hover:text-[#0B0F07] transition-colors">
-                      <Activity className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-semibold text-[#C2C9BC] group-hover:text-white">
-                      {language === 'vi' ? 'Phân tích' : 'Analytics'}
+                  <Link
+                    href="/#features"
+                    className="flex items-center gap-2.5 pr-3 sm:px-3 sm:border-r sm:border-[#D6D6D2] group"
+                  >
+                    <Activity className="w-4 h-4 text-[#C42126] shrink-0" />
+                    <span className="text-[11px] leading-[1.25] font-medium text-[#5C5C5C] group-hover:text-[#333333]">
+                      {language === 'vi' ? 'Huấn luyện' : 'Expert'}
+                      <br />
+                      <strong className="font-semibold text-[#333333]">
+                        {language === 'vi' ? 'AI Coach' : 'Coaching'}
+                      </strong>
                     </span>
                   </Link>
 
-                  <Link href="/buddy" className="flex items-center gap-2 group cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg bg-[#1A2412] border border-white/10 flex items-center justify-center text-[#C8F135] group-hover:bg-[#C8F135] group-hover:text-[#0B0F07] transition-colors">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-semibold text-[#C2C9BC] group-hover:text-white">
-                      {language === 'vi' ? 'Cộng đồng' : 'Community'}
+                  <Link href="/buddy" className="flex items-center gap-2.5 sm:pl-3 group">
+                    <Users className="w-4 h-4 text-[#C42126] shrink-0" />
+                    <span className="text-[11px] leading-[1.25] font-medium text-[#5C5C5C] group-hover:text-[#333333]">
+                      {language === 'vi' ? 'Theo dõi' : 'Track'}
+                      <br />
+                      <strong className="font-semibold text-[#333333]">
+                        {language === 'vi' ? 'Tiến độ' : 'Progress'}
+                      </strong>
                     </span>
                   </Link>
                 </div>
               </div>
 
-              {/* CENTER ZONE (5 Cols): Athlete Cutout + Orbital Ring + Frosted Glass Heart Rate HUD */}
-              <div className="lg:col-span-5 relative flex items-center justify-center min-h-[450px] sm:min-h-[500px] z-10">
-                {/* Thin SVG Orbital Ring with Glowing Nodes */}
-                <svg
-                  className="pointer-events-none absolute w-[400px] sm:w-[460px] h-[400px] sm:h-[460px] z-0"
-                  viewBox="0 0 460 460"
-                  fill="none"
+              {/* CENTER ZONE (3 Cols): Architectural Orbital Ring + Interactive Heart Rate HUD (Athlete image removed) */}
+              <div className="lg:col-span-3 relative flex items-center justify-center min-h-[280px]">
+                {/* Soft Crimson/Ivory Radial Aura (#FDE8E9) */}
+                <div className="absolute w-[240px] h-[240px] rounded-full bg-[#FDE8E9]/85 blur-2xl pointer-events-none" />
+
+                {/* 1px Orbital Ring (#D6D6D2) */}
+                <div className="orbital-ring absolute w-[230px] h-[230px] sm:w-[250px] sm:h-[250px] pointer-events-none flex items-center justify-between">
+                  <span className="w-2 h-2 rounded-full bg-[#C42126] -ml-1" />
+                  <span className="w-2 h-2 rounded-full bg-[#D6D6D2] -mr-1" />
+                </div>
+
+                {/* Single-Layer Interactive HEART RATE HUD */}
+                <div
+                  onClick={() => setSprintBpm(!sprintBpm)}
+                  title="Nhấn để mô phỏng nhịp tim"
+                  className="hud-glass relative z-20 px-5 py-4 w-[215px] cursor-pointer hover:border-[#C42126] transition-colors select-none"
                 >
-                  <circle
-                    cx="230"
-                    cy="225"
-                    r="185"
-                    stroke="url(#orbitGrad)"
-                    strokeWidth="1.2"
-                    strokeDasharray="3 0"
-                  />
-                  <circle
-                    cx="230"
-                    cy="225"
-                    r="212"
-                    stroke="rgba(200,241,53,0.14)"
-                    strokeWidth="1"
-                  />
-                  <circle cx="88" cy="108" r="3.5" fill="#C8F135" />
-                  <circle cx="394" cy="140" r="3" fill="#C8F135" fillOpacity="0.7" />
-                  <defs>
-                    <linearGradient id="orbitGrad" x1="40" y1="40" x2="420" y2="410" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#C8F135" stopOpacity="0.55" />
-                      <stop offset="50%" stopColor="#C8F135" stopOpacity="0.15" />
-                      <stop offset="100%" stopColor="#C8F135" stopOpacity="0.02" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-
-                {/* Central Athlete Photograph */}
-                <div className="relative z-10 w-[340px] sm:w-[390px] h-[440px] sm:h-[490px] flex items-end justify-center overflow-hidden">
-                  <img
-                    src="/images/fitvant/hero-athlete.jpg"
-                    alt="FITVANT Athlete"
-                    className="w-full h-full object-cover object-top hero-photo-mask select-none pointer-events-none scale-105"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0A0E07] via-[#0A0E07]/70 to-transparent" />
-                </div>
-
-                {/* Overlapping Frosted Glass HUD: HEART RATE 128 BPM */}
-                <div className="glass-hud absolute bottom-6 left-2 sm:left-0 z-30 rounded-2xl px-4 py-3.5 w-[215px]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold tracking-[0.14em] text-[#A9B2A1] uppercase block">
-                        HEART RATE
-                      </span>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="font-telemetry font-black text-3xl text-white">128</span>
-                        <span className="text-xs font-bold text-[#A9B2A1] uppercase">BPM</span>
-                      </div>
-                    </div>
-                    <div className="w-9 h-9 rounded-full bg-[#C8F135]/15 border border-[#C8F135]/40 flex items-center justify-center text-[#C8F135]">
-                      <Heart className="w-4 h-4 fill-[#C8F135] animate-pulse" />
-                    </div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] mb-0.5">
+                    HEART RATE
                   </div>
-                  {/* Equalizer Bars */}
-                  <div className="mt-2.5 flex items-end gap-1.5 h-3">
-                    <span className="w-3.5 h-1.5 rounded-full bg-[#C8F135]" />
-                    <span className="w-3.5 h-2.5 rounded-full bg-[#C8F135]" />
-                    <span className="w-3.5 h-2 rounded-full bg-[#C8F135]" />
-                    <span className="w-3.5 h-3 rounded-full bg-[#C8F135]" />
-                    <span className="w-3.5 h-1.5 rounded-full bg-white/20" />
-                    <span className="w-3.5 h-1.5 rounded-full bg-white/20" />
-                    <span className="w-3.5 h-1.5 rounded-full bg-white/20" />
+                  <div className="flex items-baseline gap-1.5 mb-1">
+                    <span className="font-display text-[40px] font-bold text-[#333333] leading-none">
+                      {sprintBpm ? '162' : '128'}
+                    </span>
+                    <span className="text-xs font-semibold text-[#5C5C5C]">BPM</span>
+                  </div>
+                  <svg className="w-full h-6 overflow-visible" viewBox="0 0 160 28" fill="none">
+                    <path
+                      d="M0 16 Q 18 16, 26 10 T 46 18 T 68 6 T 90 22 T 112 10 T 136 16 L 160 14"
+                      stroke="#C42126"
+                      strokeWidth="2"
+                      fill="none"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-[#5C5C5C]">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        sprintBpm ? 'bg-[#C42126]' : 'bg-[#2E7D32]'
+                      }`}
+                    />
+                    <span>{sprintBpm ? 'Peak Anaerobic' : 'Optimal'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT ZONE (2 Cols): Vertical Telemetry Stack */}
-              <div className="lg:col-span-2 z-20 flex lg:flex-col justify-between lg:justify-center gap-6 lg:pl-4 border-t lg:border-t-0 pt-6 lg:pt-0 border-white/10">
-                <div>
-                  <span className="text-[10px] font-bold tracking-[0.15em] text-[#9BA394] uppercase block">
+              {/* RIGHT ZONE (3 Cols): OPEN-CANVAS TELEMETRY (Zero outer card, separated ONLY by 1px #D6D6D2 hairlines!) */}
+              <div className="lg:col-span-3 z-10 flex flex-col justify-center lg:pl-6">
+                {/* Metric 1 */}
+                <div className="py-4 border-b border-[#D6D6D2]">
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-[#5C5C5C] mb-1">
                     {language === 'vi' ? 'CALO ĐỐT CHÁY' : 'CALORIES BURNED'}
-                  </span>
-                  <div className="font-telemetry font-black text-4xl sm:text-[44px] text-[#C8F135] leading-none mt-1">
+                  </div>
+                  <div className="font-display text-[54px] font-extrabold text-[#333333] leading-none font-telemetry">
                     2,450
                   </div>
-                  <span className="text-[11px] text-[#8E9688] font-medium">
-                    {language === 'vi' ? 'Mục tiêu tuần này' : 'This week’s goal'}
-                  </span>
+                  <div className="mt-1.5 text-xs font-semibold text-[#2E7D32] flex items-center gap-1">
+                    <span>↗ +18%</span>
+                    <span className="text-[#5C5C5C] font-normal">
+                      {language === 'vi' ? 'so với tuần trước' : 'from last week'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="hidden lg:block h-[1px] w-full bg-white/10" />
-
-                <div>
-                  <span className="text-[10px] font-bold tracking-[0.15em] text-[#9BA394] uppercase block">
+                {/* Metric 2 */}
+                <div className="py-4 border-b border-[#D6D6D2]">
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-[#5C5C5C] mb-1">
                     {language === 'vi' ? 'BUỔI TẬP' : 'WORKOUTS'}
-                  </span>
-                  <div className="font-telemetry font-black text-4xl sm:text-[44px] text-white leading-none mt-1">
+                  </div>
+                  <div className="font-display text-[54px] font-extrabold text-[#333333] leading-none font-telemetry">
                     28
                   </div>
-                  <span className="text-[11px] text-[#8E9688] font-medium">
-                    {language === 'vi' ? 'Hoàn thành tháng này' : 'Completed this month'}
-                  </span>
+                  <div className="mt-1.5 text-xs text-[#5C5C5C]">
+                    {language === 'vi' ? 'Tháng này' : 'This Month'}
+                  </div>
                 </div>
 
-                <div className="hidden lg:block h-[1px] w-full bg-white/10" />
-
-                <div>
-                  <span className="text-[10px] font-bold tracking-[0.15em] text-[#9BA394] uppercase block">
+                {/* Metric 3 */}
+                <div className="py-4">
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-[#5C5C5C] mb-1">
                     {language === 'vi' ? 'CHUỖI NGÀY TẬP' : 'ACTIVE STREAK'}
-                  </span>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="font-telemetry font-black text-4xl sm:text-[44px] text-[#C8F135] leading-none">
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-display text-[54px] font-extrabold text-[#333333] leading-none font-telemetry">
                       14
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-[#C8F135]/20 border border-[#C8F135]/40 text-[#C8F135] text-[10px] font-extrabold uppercase">
-                      {language === 'vi' ? 'NGÀY' : 'DAYS'}
-                    </span>
+                    <svg className="w-7 h-7 text-[#C42126]" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z" />
+                    </svg>
                   </div>
-                  <span className="text-[11px] text-[#8E9688] font-medium">
-                    {language === 'vi' ? 'Kỷ lục cá nhân' : 'Personal best'}
-                  </span>
+                  <div className="mt-1.5 text-xs text-[#5C5C5C]">
+                    {language === 'vi' ? 'Ngày liên tiếp' : 'Days Strong'}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* 3 BOTTOM PHOTOGRAPHIC BENTO FEATURE CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
-              {/* Card 1: WORKOUT */}
+            {/* BOTTOM 3-COLUMN BENTO TILES (Max Containment Depth = 1, background #EBEBE6, border #D6D6D2) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
+              {/* Tile 1: Workout Video */}
               <Link
                 href="/workout"
-                className="feature-card relative rounded-2xl p-5 overflow-hidden flex items-center justify-between min-h-[148px] cursor-pointer group"
+                className="bento-tile bento-tile-interactive p-5 min-h-[176px] flex flex-col justify-between cursor-pointer group"
               >
-                <div className="relative z-20 space-y-1.5 max-w-[58%]">
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#C8F135] text-[#0B0F07] text-[10px] font-extrabold tracking-wider uppercase">
-                    WORKOUT
-                  </span>
-                  <h3 className="text-[17px] font-extrabold text-white leading-tight pt-1">
+                <img
+                  src="/images/fitvant/card-workout.jpg"
+                  alt="Full Body Strength"
+                  className="tile-photo-mask absolute right-0 top-0 w-[62%] h-full object-cover object-center pointer-events-none group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="relative z-10 max-w-[65%]">
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#5C5C5C] mb-2">
+                    <span className="w-4 h-4 rounded-full bg-[#C42126] text-[#FFFFFF] inline-flex items-center justify-center text-[8px]">
+                      ▶
+                    </span>
+                    <span>WORKOUT VIDEO</span>
+                  </div>
+                  <h3 className="text-[20px] font-bold text-[#333333] leading-snug">
                     {language === 'vi' ? 'Sức Mạnh Toàn Thân' : 'Full Body Strength'}
                   </h3>
-                  <p className="text-xs text-[#9BA394]">
-                    {language === 'vi' ? 'Tăng cơ • Đốt mỡ tại nhà' : 'Build Muscle. Burn Fat.'}
+                  <p className="text-xs text-[#5C5C5C] mt-0.5">
+                    {language === 'vi' ? '45 Phút • Trung cấp' : '45 Min • Intermediate'}
                   </p>
-                  <div className="pt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-[#C8F135] group-hover:translate-x-1 transition-transform">
-                    <span>{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </div>
                 </div>
-                <div className="absolute right-0 top-0 bottom-0 w-[52%] z-10 pointer-events-none">
-                  <img
-                    src="/images/fitvant/card-workout.jpg"
-                    alt="Workout"
-                    className="w-full h-full object-cover object-center opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#171F10] via-[#171F10]/55 to-transparent" />
+                <div className="relative z-10 mt-4">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg btn-cta-red text-xs font-semibold">
+                    {language === 'vi' ? 'Bắt đầu tập' : 'Start Workout'} <span>›</span>
+                  </span>
                 </div>
               </Link>
 
-              {/* Card 2: NUTRITION */}
+              {/* Tile 2: Nutrition Plan */}
               <Link
                 href="/register"
-                className="feature-card relative rounded-2xl p-5 overflow-hidden flex items-center justify-between min-h-[148px] cursor-pointer group"
+                className="bento-tile bento-tile-interactive p-5 min-h-[176px] flex flex-col justify-between cursor-pointer group"
               >
-                <div className="relative z-20 space-y-1.5 max-w-[58%]">
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1C2812] border border-[#C8F135]/60 text-[#C8F135] text-[10px] font-extrabold tracking-wider uppercase">
-                    NUTRITION
-                  </span>
-                  <h3 className="text-[17px] font-extrabold text-white leading-tight pt-1">
+                <img
+                  src="/images/fitvant/card-nutrition.jpg"
+                  alt="Eat Clean. Feel Lean."
+                  className="tile-photo-mask absolute right-0 top-0 w-[62%] h-full object-cover object-center pointer-events-none group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="relative z-10 max-w-[65%]">
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#5C5C5C] mb-2">
+                    <span className="w-4 h-4 rounded-full bg-[#333333] text-[#FFFFFF] inline-flex items-center justify-center text-[9px]">
+                      ✦
+                    </span>
+                    <span>NUTRITION PLAN</span>
+                  </div>
+                  <h3 className="text-[20px] font-bold text-[#333333] leading-snug">
                     {language === 'vi' ? 'Ăn Sạch. Dáng Gọn.' : 'Eat Clean. Feel Lean.'}
                   </h3>
-                  <p className="text-xs text-[#9BA394]">
-                    {language === 'vi' ? 'Check-in Calo 1 chạm' : 'Smart Meal Plans'}
+                  <p className="text-xs text-[#5C5C5C] mt-0.5">
+                    {language === 'vi' ? 'Check-in Calo 1 chạm' : 'Custom Meal Guides'}
                   </p>
-                  <div className="pt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-[#C8F135] group-hover:translate-x-1 transition-transform">
-                    <span>{language === 'vi' ? 'Xem lộ trình' : 'View Plans'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </div>
                 </div>
-                <div className="absolute right-0 top-0 bottom-0 w-[52%] z-10 pointer-events-none">
-                  <img
-                    src="/images/fitvant/card-nutrition.jpg"
-                    alt="Nutrition"
-                    className="w-full h-full object-cover object-center opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#171F10] via-[#171F10]/55 to-transparent" />
+                <div className="relative z-10 mt-4">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#F5F5F0]/95 border border-[#D6D6D2] text-[#333333] text-xs font-semibold group-hover:bg-[#333333] group-hover:text-[#FFFFFF] transition-colors">
+                    {language === 'vi' ? 'Xem lộ trình' : 'Explore Meals'} <span>›</span>
+                  </span>
                 </div>
               </Link>
 
-              {/* Card 3: COMMUNITY */}
+              {/* Tile 3: Community */}
               <Link
                 href="/buddy"
-                className="feature-card relative rounded-2xl p-5 overflow-hidden flex items-center justify-between min-h-[148px] cursor-pointer group"
+                className="bento-tile bento-tile-interactive p-5 min-h-[176px] flex flex-col justify-between cursor-pointer group"
               >
-                <div className="relative z-20 space-y-1.5 max-w-[58%]">
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/10 border border-white/25 text-white text-[10px] font-extrabold tracking-wider uppercase">
-                    COMMUNITY
-                  </span>
-                  <h3 className="text-[17px] font-extrabold text-white leading-tight pt-1">
+                <img
+                  src="/images/fitvant/card-community.jpg"
+                  alt="Stronger Together"
+                  className="tile-photo-mask absolute right-0 top-0 w-[62%] h-full object-cover object-center pointer-events-none group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="relative z-10 max-w-[65%]">
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#5C5C5C] mb-2">
+                    <span className="w-4 h-4 rounded-full bg-[#333333] text-[#FFFFFF] inline-flex items-center justify-center text-[9px]">
+                      ●
+                    </span>
+                    <span>COMMUNITY</span>
+                  </div>
+                  <h3 className="text-[20px] font-bold text-[#333333] leading-snug">
                     {language === 'vi' ? 'Đồng Hành Bền Bỉ' : 'Stronger Together'}
                   </h3>
-                  <p className="text-xs text-[#9BA394]">
-                    {language === 'vi' ? 'Ghép đôi Buddy • Co-op XP' : 'Join Challenges'}
+                  <p className="text-xs text-[#5C5C5C] mt-0.5">
+                    {language === 'vi' ? 'Ghép đôi Buddy • Co-op XP' : 'Join 50K+ Members'}
                   </p>
-                  <div className="pt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-[#C8F135] group-hover:translate-x-1 transition-transform">
-                    <span>{language === 'vi' ? 'Tham gia ngay' : 'Join Now'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </div>
                 </div>
-                <div className="absolute right-0 top-0 bottom-0 w-[52%] z-10 pointer-events-none">
-                  <img
-                    src="/images/fitvant/card-community.jpg"
-                    alt="Community"
-                    className="w-full h-full object-cover object-center opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#171F10] via-[#171F10]/55 to-transparent" />
+                <div className="relative z-10 mt-4">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#F5F5F0]/95 border border-[#D6D6D2] text-[#333333] text-xs font-semibold group-hover:bg-[#333333] group-hover:text-[#FFFFFF] transition-colors">
+                    {language === 'vi' ? 'Tham gia ngay' : 'Join Community'} <span>›</span>
+                  </span>
                 </div>
               </Link>
-            </div>
-
-            {/* TRUSTED BY 100,000+ ATHLETES BAR */}
-            <div className="pt-8 pb-2 flex items-center justify-center gap-4">
-              <div className="h-[1px] flex-1 max-w-[200px] bg-gradient-to-r from-transparent to-white/15" />
-              <p className="text-[11px] font-bold tracking-[0.22em] text-[#8E9688] uppercase text-center">
-                {language === 'vi' ? 'ĐƯỢC TIN DÙNG BỞI ' : 'TRUSTED BY '}
-                <span className="text-[#C8F135] font-extrabold">100,000+</span>
-                {language === 'vi' ? ' VẬN ĐỘNG VIÊN TOÀN CẦU' : ' ATHLETES WORLDWIDE'}
-              </p>
-              <div className="h-[1px] flex-1 max-w-[200px] bg-gradient-to-l from-transparent to-white/15" />
             </div>
           </div>
         </section>
 
-        {/* 2. HOW IT WORKS & WHY CHOOSE FITVANT (#about) */}
-        <section id="about" className="max-w-[1280px] mx-auto px-4 sm:px-8 space-y-10 scroll-mt-24">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
+        {/* 2. HOW IT WORKS (#about) — Flattened 3-Column Hairline Grid on Open Canvas */}
+        <section id="about" className="max-w-[1220px] mx-auto px-5 sm:px-8 space-y-8 scroll-mt-20">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#D6D6D2] pb-5">
             <div>
-              <span className="inline-flex items-center gap-2 text-xs font-extrabold text-[#C8F135] uppercase tracking-[0.16em]">
-                <span className="w-2 h-2 rounded-full bg-[#C8F135]" />
-                {t('howItWorksTitle')}
-              </span>
-              <h2 className="font-display font-black text-4xl sm:text-5xl text-white uppercase tracking-tight mt-2">
+              <h2 className="font-display font-extrabold text-4xl sm:text-5xl text-[#333333] uppercase tracking-tight">
                 {t('whyChooseUsTitle')}
               </h2>
             </div>
-            <p className="text-sm text-[#9BA394] max-w-md">
-              {t('whyChooseUsSubtitle')}
-            </p>
+            <p className="text-sm text-[#5C5C5C] max-w-md">{t('whyChooseUsSubtitle')}</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Step 01 */}
-            <div className="feature-card rounded-3xl p-7 space-y-4 relative overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#D6D6D2] border-b border-[#D6D6D2] pb-8">
+            <div className="py-4 md:py-2 md:pr-8 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-[#C8F135]/15 border border-[#C8F135]/35 flex items-center justify-center text-[#C8F135]">
-                  <Target className="w-6 h-6" />
-                </div>
-                <span className="font-telemetry font-black text-4xl text-white/15">01</span>
+                <Target className="w-5 h-5 text-[#C42126]" />
+                <span className="font-telemetry font-bold text-2xl text-[#5C5C5C]/50">01</span>
               </div>
-              <h3 className="font-display font-bold text-2xl text-white tracking-wide">
-                {t('step1Title')}
-              </h3>
-              <p className="text-sm text-[#9BA394] leading-relaxed">
-                {t('step1Desc')}
-              </p>
+              <h3 className="font-display font-bold text-2xl text-[#333333]">{t('step1Title')}</h3>
+              <p className="text-sm text-[#5C5C5C] leading-relaxed">{t('step1Desc')}</p>
             </div>
 
-            {/* Step 02 (Highlighted Volt Border) */}
-            <div className="feature-card rounded-3xl p-7 space-y-4 relative overflow-hidden border-[#C8F135]/45 shadow-[0_0_30px_rgba(200,241,53,0.08)]">
+            <div className="py-4 md:py-2 md:px-8 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-[#C8F135] flex items-center justify-center text-[#0B0F07]">
-                  <Zap className="w-6 h-6" />
-                </div>
-                <span className="font-telemetry font-black text-4xl text-[#C8F135]/30">02</span>
+                <Zap className="w-5 h-5 text-[#C42126]" />
+                <span className="font-telemetry font-bold text-2xl text-[#C42126]">02</span>
               </div>
-              <h3 className="font-display font-bold text-2xl text-[#C8F135] tracking-wide">
-                {t('step2Title')}
-              </h3>
-              <p className="text-sm text-[#C2C9BC] leading-relaxed">
-                {t('step2Desc')}
-              </p>
+              <h3 className="font-display font-bold text-2xl text-[#333333]">{t('step2Title')}</h3>
+              <p className="text-sm text-[#5C5C5C] leading-relaxed">{t('step2Desc')}</p>
             </div>
 
-            {/* Step 03 */}
-            <div className="feature-card rounded-3xl p-7 space-y-4 relative overflow-hidden">
+            <div className="py-4 md:py-2 md:pl-8 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-[#C8F135]/15 border border-[#C8F135]/35 flex items-center justify-center text-[#C8F135]">
-                  <Users className="w-6 h-6" />
-                </div>
-                <span className="font-telemetry font-black text-4xl text-white/15">03</span>
+                <Users className="w-5 h-5 text-[#C42126]" />
+                <span className="font-telemetry font-bold text-2xl text-[#5C5C5C]/50">03</span>
               </div>
-              <h3 className="font-display font-bold text-2xl text-white tracking-wide">
-                {t('step3Title')}
-              </h3>
-              <p className="text-sm text-[#9BA394] leading-relaxed">
-                {t('step3Desc')}
-              </p>
+              <h3 className="font-display font-bold text-2xl text-[#333333]">{t('step3Title')}</h3>
+              <p className="text-sm text-[#5C5C5C] leading-relaxed">{t('step3Desc')}</p>
             </div>
           </div>
         </section>
 
-        {/* 3. CORE THESIS FEATURES (#features) & CTA BANNER */}
-        <section id="features" className="max-w-[1280px] mx-auto px-4 sm:px-8 space-y-8 scroll-mt-24">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="glass-hud rounded-3xl p-7 space-y-3 border border-white/12 hover:border-[#C8F135]/40 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#C8F135]/15 border border-[#C8F135]/30 text-[#C8F135] flex items-center justify-center">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <h4 className="font-display font-bold text-2xl text-white tracking-wide">
-                {t('feature1Title')}
-              </h4>
-              <p className="text-xs text-[#9BA394] leading-relaxed">
-                {t('feature1Desc')}
-              </p>
+        {/* 3. CORE THESIS FEATURES (#features) & SINGLE-LAYER CTA BANNER */}
+        <section id="features" className="max-w-[1220px] mx-auto px-5 sm:px-8 space-y-8 scroll-mt-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bento-tile p-6 space-y-2.5">
+              <Sparkles className="w-5 h-5 text-[#C42126]" />
+              <h4 className="font-display font-bold text-2xl text-[#333333]">{t('feature1Title')}</h4>
+              <p className="text-xs text-[#5C5C5C] leading-relaxed">{t('feature1Desc')}</p>
             </div>
 
-            <div className="glass-hud rounded-3xl p-7 space-y-3 border border-white/12 hover:border-[#C8F135]/40 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#C8F135]/15 border border-[#C8F135]/30 text-[#C8F135] flex items-center justify-center">
-                <Dumbbell className="w-6 h-6" />
-              </div>
-              <h4 className="font-display font-bold text-2xl text-white tracking-wide">
-                {t('feature2Title')}
-              </h4>
-              <p className="text-xs text-[#9BA394] leading-relaxed">
-                {t('feature2Desc')}
-              </p>
+            <div className="bento-tile p-6 space-y-2.5">
+              <Dumbbell className="w-5 h-5 text-[#C42126]" />
+              <h4 className="font-display font-bold text-2xl text-[#333333]">{t('feature2Title')}</h4>
+              <p className="text-xs text-[#5C5C5C] leading-relaxed">{t('feature2Desc')}</p>
             </div>
 
-            <div className="glass-hud rounded-3xl p-7 space-y-3 border border-white/12 hover:border-[#C8F135]/40 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#C8F135]/15 border border-[#C8F135]/30 text-[#C8F135] flex items-center justify-center">
-                <Shield className="w-6 h-6" />
-              </div>
-              <h4 className="font-display font-bold text-2xl text-white tracking-wide">
-                {t('feature3Title')}
-              </h4>
-              <p className="text-xs text-[#9BA394] leading-relaxed">
-                {t('feature3Desc')}
-              </p>
+            <div className="bento-tile p-6 space-y-2.5">
+              <Shield className="w-5 h-5 text-[#C42126]" />
+              <h4 className="font-display font-bold text-2xl text-[#333333]">{t('feature3Title')}</h4>
+              <p className="text-xs text-[#5C5C5C] leading-relaxed">{t('feature3Desc')}</p>
             </div>
           </div>
 
-          {/* Bottom High-Voltage CTA Banner */}
-          <div className="feature-card rounded-3xl p-8 md:p-12 border border-[#C8F135]/35 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="pointer-events-none absolute -right-20 -bottom-20 w-80 h-80 volt-spotlight opacity-60" />
-            <div className="space-y-2 max-w-xl relative z-10">
-              <span className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#C8F135]">
-                FITVANT PERFORMANCE SYSTEM
-              </span>
-              <h3 className="font-display font-black text-3xl md:text-5xl text-white uppercase leading-none">
+          <div className="bento-tile p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-xl">
+              <h3 className="font-display font-extrabold text-3xl md:text-5xl text-[#333333] uppercase leading-none">
                 {t('ctaBannerTitle')}
               </h3>
-              <p className="text-sm text-[#9BA394]">
-                {t('ctaBannerSubtitle')}
-              </p>
+              <p className="text-sm text-[#5C5C5C]">{t('ctaBannerSubtitle')}</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 shrink-0 relative z-10">
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
               <Link
                 href="/register"
-                className="volt-pill-btn rounded-full pl-6 pr-2 py-2 inline-flex items-center gap-3 font-extrabold text-xs tracking-wider uppercase"
+                className="px-6 py-3.5 rounded-lg btn-cta-red font-semibold text-xs uppercase tracking-wider"
               >
-                <span>{t('startJourneyFreeBtn')}</span>
-                <span className="w-8 h-8 rounded-full bg-[#0B0F07] text-[#C8F135] flex items-center justify-center">
-                  <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
-                </span>
+                {t('startJourneyFreeBtn')}
               </Link>
               <Link
                 href="/login"
-                className="px-6 py-3.5 rounded-full bg-[#141C0F] hover:bg-[#1C2715] text-white border border-white/15 font-extrabold text-xs uppercase tracking-wider transition-colors"
+                className="px-6 py-3.5 rounded-lg bg-[#F5F5F0] border border-[#D6D6D2] hover:border-[#333333] text-[#333333] font-semibold text-xs uppercase tracking-wider transition-colors"
               >
                 {t('alreadyHaveAccountBtn')}
               </Link>
@@ -598,7 +576,7 @@ export default function HomePage() {
   }
 
   // =========================================================================
-  // CASE 2: AUTHENTICATED USER — FITVANT PERSONALIZED AI DASHBOARD
+  // CASE 2: AUTHENTICATED USER — SINGLE-LAYER AI DASHBOARD (ZERO CARD-IN-CARD)
   // =========================================================================
   const levelInfo = todayStatus?.levelInfo || {
     level: user?.level || 1,
@@ -606,327 +584,545 @@ export default function HomePage() {
     progressPercent: 0,
     xpRemainingToNextLevel: 100,
   };
+  const displayXp = levelInfo.totalXp ?? levelInfo.currentXp ?? user?.xp ?? 0;
+  const displayName = formatPersonName(user?.name, language);
 
   const rawGoal = user?.profile?.primaryGoal || 'MAINTENANCE';
-  const goalDisplay =
-    rawGoal === 'FAT_LOSS'
-      ? t('goalFatLoss')
-      : rawGoal === 'MUSCLE_GAIN'
-        ? t('goalMuscleGain')
-        : rawGoal === 'ENDURANCE'
-          ? t('goalEndurance')
-          : t('goalMaintenance');
+  const goalDisplay = getGoalLabel(rawGoal, language, 'long');
 
   const recPlan = recommendation?.routine || recommendation;
   const recExercises = recPlan?.exercises || [];
   const recTitle =
     getWorkoutPlanTitle(recPlan?.title, language) ||
-    recPlan?.titleVi ||
     recPlan?.title ||
     'Calisthenics Routine';
-  const recMinutes = recPlan?.estimatedDurationMin || recPlan?.estimatedMinutes || 20;
-  const recXp = recPlan?.totalEstimatedXp || recPlan?.xpReward || 120;
+  const recMinutes = recPlan?.estimatedDurationMin || 20;
+  const recXp = recPlan?.totalEstimatedXp || 120;
   const recExplanation =
-    getAiExplanation(recPlan?.aiExplanation, recPlan?.adaptationType, language) ||
-    recommendation?.reason ||
-    '';
+    getAiExplanation(
+      recPlan?.aiExplanation,
+      recPlan?.adaptationType,
+      language,
+      recPlan?.aiExplanationEn,
+    ) || '';
 
   const isWorkoutDoneToday = Boolean(todayStatus?.hasWorkedOutToday || todayStatus?.workoutDone);
   const isNutritionDoneToday = Boolean(todayStatus?.hasCheckedInToday || todayStatus?.nutritionDone);
-  const checkedCalorieType =
-    todayStatus?.todayCheckin?.calorieType || todayStatus?.checkIn?.calorieStatus || null;
+  const checkedCalorieType = todayStatus?.todayCheckin?.calorieType || null;
+  const todayWorkout = todayStatus?.todayWorkout;
+  const todayRpe = todayWorkout?.rpeScore;
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-6 space-y-6">
-      {/* TOP PERSONALIZED GREETING BANNER */}
-      <section className="feature-card rounded-3xl p-6 md:p-8 relative overflow-hidden border border-white/12">
-        <div className="pointer-events-none absolute -top-24 right-10 w-96 h-96 volt-spotlight opacity-50" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center space-x-2 bg-[#192310] px-3.5 py-1 rounded-full text-xs font-extrabold text-[#C8F135] border border-[#C8F135]/35">
-              <span className="w-2 h-2 rounded-full bg-[#C8F135] animate-pulse shadow-[0_0_8px_#C8F135]" />
-              <span className="uppercase tracking-wider">{t('personalizedSystemBadge')}</span>
-            </div>
-            <h1 className="font-display font-black text-4xl md:text-5xl text-white uppercase tracking-tight leading-none pt-1">
-              {t('helloAthlete')}, <span className="text-[#C8F135]">{user?.name}</span>!
-            </h1>
-            <p className="text-sm text-[#9BA394] font-medium">
-              {t('goalLabel')}:{' '}
-              <strong className="text-white">{goalDisplay}</strong> •{' '}
-              <span className="text-[#C8F135] font-bold">
-                {t('level')} {levelInfo.level}
-              </span>{' '}
-              ({levelInfo.totalXp} XP)
-            </p>
-          </div>
+    <div className="max-w-[1220px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 space-y-3.5 sm:space-y-4">
+      {/* OPEN-CANVAS GREETING HEADER (Separated by 1px #D6D6D2 hairline — NO outer card wrapper!) */}
+      <section className="pb-2.5 sm:pb-3 border-b border-[#D6D6D2] flex flex-col md:flex-row md:items-end justify-between gap-2.5">
+        <div>
+          <h1 className="font-display font-extrabold text-[28px] sm:text-[34px] lg:text-[38px] text-[#333333] uppercase leading-none">
+            {t('helloAthlete')}, <span className="text-[#C42126]">{displayName}</span>
+          </h1>
+          <p className="text-xs text-[#5C5C5C] mt-1">
+            {t('goalLabel')}: <strong className="text-[#333333]">{goalDisplay}</strong> •{' '}
+            <span className="text-[#C42126] font-semibold">
+              {t('level')} {levelInfo.level}
+            </span>{' '}
+            ({displayXp} XP)
+          </p>
+        </div>
 
-          {/* Quick Status Pill or Giant CTA */}
-          <div className="flex items-center gap-3 shrink-0">
-            {isWorkoutDoneToday ? (
-              <div className="flex items-center space-x-2 bg-[#C8F135]/15 border border-[#C8F135]/45 text-[#C8F135] px-5 py-3.5 rounded-2xl font-black text-sm">
-                <CheckCircle2 className="w-5 h-5" />
-                <span>{t('completedTodayBadge')}</span>
-              </div>
-            ) : (
-              <div className="w-full sm:w-auto min-w-[250px]">
-                <GiantButton
-                  variant="primary"
-                  size="large"
-                  icon={<Dumbbell className="w-6 h-6" />}
-                  subtitle={recTitle}
-                  onClick={handleStartWorkout}
-                >
-                  {t('startWorkoutNow')}
-                </GiantButton>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {!isWorkoutDoneToday && (
+            <button
+              onClick={handleStartWorkout}
+              className="px-5 py-2.5 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider flex items-center gap-2 cursor-pointer"
+            >
+              <Dumbbell className="w-4 h-4" />
+              <span>{t('startWorkoutNow')}</span>
+            </button>
+          )}
         </div>
       </section>
 
-      {/* MAIN 12-COLUMN BENTO GRID */}
+      {/* MAIN 12-COLUMN SINGLE-LAYER BENTO GRID (8 Cols Workout + 4 Cols Telemetry) */}
       <section>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* LEFT 8 COLUMNS: HYBRID RECOMMENDATION + 1-TAP NUTRITION CHECK-IN */}
-          <div className="lg:col-span-8 space-y-6">
-            {/* HYBRID AI RECOMMENDATION CARD */}
-            <div className="feature-card rounded-3xl p-6 md:p-7 space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-4">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#C8F135]/15 border border-[#C8F135]/35 flex items-center justify-center text-[#C8F135]">
-                    <Sparkles className="w-5 h-5" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
+          {/* LEFT 8 COLUMNS: Equal height with Right Column via rightColHeight */}
+          <div
+            style={rightColHeight ? { height: `${rightColHeight}px` } : undefined}
+            className="lg:col-span-8 flex flex-col justify-between gap-5 sm:gap-6 min-h-0"
+          >
+            {/* SINGLE-LAYER AI WORKOUT BENTO TILE (#EBEBE6, zero nested exercise cards!) */}
+            <div className="bento-tile p-5 sm:p-6 overflow-hidden flex-1 min-h-0 flex flex-col justify-between">
+              {isWorkoutDoneToday ? (
+                /* STATE 1: TODAY'S WORKOUT ALREADY COMPLETED (Aligned with Workout Tab) */
+                <div className="flex-1 min-h-0 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2.5 border-b border-[#D6D6D2]">
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-[10px] font-bold uppercase tracking-wider">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{t('workoutDayDoneBadge')}</span>
+                        </span>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#333333] mt-1">
+                          {todayWorkout?.workoutTitle || (language === 'vi' ? 'Calisthenics Hằng Ngày' : 'Daily Calisthenics Routine')}
+                        </h2>
+                      </div>
+                      <span className="font-telemetry text-sm font-bold text-[#2E7D32]">
+                        +{todayWorkout?.earnedXp || 120} XP • +{todayWorkout?.earnedCoins || 10} Coins
+                      </span>
+                    </div>
+
+                    {/* Flush AI Coach Advice Strip */}
+                    <div className="-mx-5 sm:-mx-6 px-5 sm:px-6 py-2 bg-[#FDE8E9] border-b border-[#D6D6D2] flex items-center justify-between gap-3 text-xs text-[#C42126]">
+                      <span className="truncate">
+                        <strong>AI Coach:</strong>{' '}
+                        {todayRpe === 1
+                          ? t('auxiliaryFinisherSub')
+                          : todayRpe === 3
+                            ? t('recoveryRestAdviceHard')
+                            : t('recoveryRestAdviceOptimal')}
+                      </span>
+                      <span className="font-telemetry font-bold uppercase shrink-0 text-[10px]">
+                        {todayRpe === 1 ? 'Finisher Ready' : 'Recovery Active'}
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="font-display font-bold text-2xl text-white tracking-wide uppercase">
-                    {t('aiRecommendationTitle')}
-                  </h3>
+
+                  {/* Body: Telemetry and Health Summary */}
+                  <div className="space-y-2.5">
+                    {/* Flush 3-Column Telemetry Strip */}
+                    <div className="grid grid-cols-3 divide-x divide-[#D6D6D2] py-2.5 border-b border-[#D6D6D2] text-center">
+                      <div className="pr-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                          {t('workoutFinishedTime')}
+                        </span>
+                        <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#333333] font-telemetry mt-0.5 block">
+                          {Math.max(1, Math.round((todayWorkout?.durationSeconds || 60) / 60))} {t('minutes')}
+                        </span>
+                      </div>
+                      <div className="px-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                          {t('workoutFinishedReps')}
+                        </span>
+                        <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#333333] font-telemetry mt-0.5 block">
+                          {todayWorkout?.totalReps || 60} {t('reps')}
+                        </span>
+                      </div>
+                      <div className="pl-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                          {t('workoutDayDoneRpeLabel')}
+                        </span>
+                        <span className="font-display text-sm sm:text-base font-extrabold text-[#C42126] font-telemetry mt-1.5 block">
+                          {todayRpe === 1
+                            ? `⚡ ${t('rpeEasyTitle')}`
+                            : todayRpe === 3
+                              ? `🛡️ ${t('rpeHardTitle')}`
+                              : `🎯 ${t('rpeOptimalTitle')}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-[#F5F5F0] border border-[#D6D6D2] flex flex-wrap items-center justify-between gap-2.5 text-xs text-[#5C5C5C]">
+                      <div className="flex items-center gap-2">
+                        {todayRpe === 1 ? (
+                          <Zap className="w-4 h-4 text-[#C42126] shrink-0" />
+                        ) : (
+                          <Shield className="w-4 h-4 text-[#2E7D32] shrink-0" />
+                        )}
+                        <span>
+                          {todayRpe === 1
+                            ? (language === 'vi'
+                                ? 'Bạn đã đánh giá buổi tập là Quá Dễ! Bạn có thể kích hoạt bài tập bổ trợ cơ lõi (Core Burnout).'
+                                : 'You rated today as Too Easy! A Core Burnout finisher is ready for you.')
+                            : (language === 'vi'
+                                ? 'Cơ bắp đang trong giai đoạn hồi phục tích cực. Hãy uống đủ nước và nghỉ ngơi trọn vẹn.'
+                                : 'Muscles are in active recovery phase. Stay hydrated and rest well today.')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 font-telemetry font-bold text-[#333333] shrink-0">
+                        {todayWorkout?.calorieBurnEstimate ? (
+                          <span>~{todayWorkout.calorieBurnEstimate} kcal • </span>
+                        ) : null}
+                        <span>Streak {todayStatus?.userStats?.currentStreak || user?.currentStreak || 1}d</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer CTA */}
+                  <div className="pt-2.5 border-t border-[#D6D6D2] flex flex-wrap items-center justify-between gap-3 shrink-0">
+                    <span className="text-xs text-[#2E7D32] font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{language === 'vi' ? 'Đã hoàn thành giáo án thể lực hôm nay' : 'Daily fitness routine completed'}</span>
+                    </span>
+                    {todayRpe === 1 ? (
+                      <Link
+                        href="/workout"
+                        className="px-5 py-2 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Zap className="w-4 h-4" />
+                        <span>{language === 'vi' ? 'BÀI TẬP BỔ TRỢ (+50 XP)' : 'START FINISHER (+50 XP)'}</span>
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/workout"
+                        className="px-4 py-2 rounded-lg bg-[#EBEBE6] hover:bg-[#D6D6D2] border border-[#D6D6D2] text-[#333333] text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1"
+                      >
+                        <span>{language === 'vi' ? 'XEM LẠI BUỔI TẬP' : 'REVIEW WORKOUT'}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
-                <span className="text-[11px] font-black uppercase bg-[#C8F135] text-[#0B0F07] px-3 py-1 rounded-full tracking-wider">
-                  Rule-Based + Collaborative Filtering
-                </span>
-              </div>
-
-              {recExercises.length > 0 ? (
-                <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0D1309]/90 p-5 rounded-2xl border border-white/10">
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-extrabold text-[#C8F135] uppercase tracking-wider">
-                        {recPlan?.targetFocus || recPlan?.targetArea || goalDisplay} • {recMinutes}{' '}
-                        {t('minutes')}
-                      </span>
-                      <h4 className="font-display font-black text-3xl text-white uppercase tracking-wide">
-                        {recTitle}
-                      </h4>
-                      <p className="text-xs text-[#9BA394] font-medium">
-                        {recExplanation}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 flex sm:flex-col items-end justify-between gap-2">
-                      <span className="bg-[#C8F135]/15 text-[#C8F135] border border-[#C8F135]/35 px-3 py-1 rounded-full text-xs font-black font-telemetry">
-                        +{recXp} XP
-                      </span>
-                      <span className="text-xs font-bold text-[#9BA394]">
-                        {recExercises.length} {t('exercisesCount')}
+              ) : recExercises.length > 0 ? (
+                <>
+                  <div className="shrink-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2.5 pb-2.5 border-b border-[#D6D6D2]">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#C42126]">
+                          {goalDisplay} • {recMinutes} {t('minutes')}
+                        </span>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#333333] mt-0.5">{recTitle}</h2>
+                      </div>
+                      <span className="font-telemetry text-sm font-bold text-[#2E7D32]">
+                        +{recXp} XP • {recExercises.length} {t('exercisesCount')}
                       </span>
                     </div>
+
+                    {/* Flush Warning/Adaptation Strip using --color-warning-light (#FDE8E9) & --color-warning-text (#C42126) */}
+                    {recExplanation && (
+                      <div className="-mx-5 sm:-mx-6 px-5 sm:px-6 py-1.5 bg-[#FDE8E9] border-b border-[#D6D6D2] flex items-center justify-between gap-3 text-xs text-[#C42126]">
+                        <span className="truncate">
+                          <strong>AI Coach:</strong> {recExplanation}
+                        </span>
+                        <span className="font-telemetry font-bold uppercase shrink-0 text-[10px]">Adaptive</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Exercise Preview List */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {recExercises.slice(0, 4).map((ex: any, idx: number) => (
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-1.5 divide-y divide-[#D6D6D2] exercise-scroll">
+                    {recExercises.map((ex: any, idx: number) => (
                       <div
                         key={`${ex.exerciseId || ex.slug || 'ex'}-${idx}`}
-                        className="flex items-center justify-between p-3.5 rounded-2xl border border-white/10 bg-[#12190D] hover:border-[#C8F135]/40 transition-colors"
+                        className="py-2 flex items-center justify-between gap-3 shrink-0"
                       >
-                        <div className="flex items-center space-x-3">
-                          <span className="w-8 h-8 rounded-xl bg-[#C8F135] text-[#0B0F07] font-telemetry font-black text-sm flex items-center justify-center">
-                            {idx + 1}
+                        <div className="flex items-baseline gap-3">
+                          <span className="font-telemetry text-xs sm:text-sm font-bold text-[#C42126] w-5 sm:w-6">
+                            {String(idx + 1).padStart(2, '0')}
                           </span>
                           <div>
-                            <p className="font-extrabold text-sm text-white">
+                            <p className="text-xs sm:text-sm font-semibold text-[#333333]">
                               {getExerciseName(ex, language)}
                             </p>
-                            <p className="text-xs text-[#9BA394] font-semibold">
-                              {ex.sets} sets × {ex.reps} {ex.isTimeBased ? 'sec' : 'reps'}
+                            <p className="text-[11px] text-[#5C5C5C] mt-0.5">
+                              {ex.equipment ? `${ex.equipment} • ` : ''}
+                              {t('restSeconds')} {ex.restSeconds}s
                             </p>
                           </div>
                         </div>
-                        <span className="text-xs font-bold text-[#C8F135] bg-[#C8F135]/10 border border-[#C8F135]/25 px-2.5 py-1 rounded-lg font-telemetry">
-                          {t('restSeconds')} {ex.restSeconds}s
+
+                        <span className="font-telemetry text-sm sm:text-base font-bold text-[#333333]">
+                          {ex.sets} × {ex.reps} {ex.isTimeBased ? 's' : ''}
                         </span>
                       </div>
                     ))}
+
+                    {recExercises.length <= 3 && (
+                      <>
+                        <div className="py-2 flex items-center justify-between gap-3 opacity-85 shrink-0">
+                          <div className="flex items-baseline gap-3">
+                            <span className="font-telemetry text-sm font-bold text-[#2E7D32] w-5 sm:w-6">
+                              ✦
+                            </span>
+                            <div>
+                              <p className="text-xs sm:text-sm font-semibold text-[#333333]">
+                                {language === 'vi'
+                                  ? 'Khởi Động Khớp & Làm Nóng Động'
+                                  : 'Joint Mobility & Dynamic Warm-up'}
+                              </p>
+                              <p className="text-[11px] text-[#5C5C5C] mt-0.5">
+                                {language === 'vi'
+                                  ? 'Xoay cổ tay, khớp vai và mở khớp hông trước hiệp chính'
+                                  : 'Wrists, shoulders & hip openers before main sets'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-telemetry text-xs font-bold text-[#2E7D32] uppercase">
+                            3 {t('minutes')}
+                          </span>
+                        </div>
+
+                        {recExercises.length <= 2 && (
+                          <div className="py-2 flex items-center justify-between gap-3 opacity-85 shrink-0">
+                            <div className="flex items-baseline gap-3">
+                              <span className="font-telemetry text-sm font-bold text-[#2E7D32] w-5 sm:w-6">
+                                ✦
+                              </span>
+                              <div>
+                                <p className="text-xs sm:text-sm font-semibold text-[#333333]">
+                                  {language === 'vi'
+                                    ? 'Giãn Cơ Giải Nén & Điều Hòa Nhịp Thở'
+                                    : 'Decompression Stretch & Breathing'}
+                                </p>
+                                <p className="text-[11px] text-[#5C5C5C] mt-0.5">
+                                  {language === 'vi'
+                                    ? 'Hạ nhịp tim và thả lỏng nhóm cơ sau buổi tập'
+                                    : 'Post-routine heart rate recovery & muscle release'}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="font-telemetry text-xs font-bold text-[#2E7D32] uppercase">
+                              2 {t('minutes')}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
 
-                  <GiantButton
-                    variant="primary"
-                    size="giant"
-                    icon={<Dumbbell className="w-7 h-7" />}
-                    subtitle={t('giantUiModeDesc')}
-                    badge={`+${recXp} XP`}
-                    onClick={handleStartWorkout}
-                  >
-                    {t('startRoutineBtn')}
-                  </GiantButton>
-                </div>
+                  <div className="shrink-0 pt-2.5 border-t border-[#D6D6D2] flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs text-[#5C5C5C]">{t('giantUiModeDesc')}</span>
+                    <button
+                      onClick={handleStartWorkout}
+                      className="px-5 py-2 sm:py-2.5 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                    >
+                      {t('startRoutineBtn')} (+{recXp} XP)
+                    </button>
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-8 space-y-3">
-                  <p className="text-sm text-[#9BA394]">{t('noRoutineAvailable')}</p>
-                  <Link href="/workout">
-                    <GiantButton variant="primary" size="normal">
+                <>
+                  <div className="flex-1 min-h-0 flex flex-col divide-y divide-[#D6D6D2]">
+                    <div className="flex-1 flex items-center justify-between gap-4 py-2">
+                      <div className="flex items-baseline gap-4">
+                        <span className="font-telemetry text-sm font-bold text-[#C42126] w-6">
+                          01
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-[#333333]">
+                            {language === 'vi'
+                              ? 'Chuẩn Hóa Thể Lực Nền & Chỉ Số BMI'
+                              : 'Baseline Fitness & BMI Calibration'}
+                          </p>
+                          <p className="text-xs text-[#5C5C5C] mt-0.5">
+                            {language === 'vi'
+                              ? 'AI đối chiếu ngưỡng chống đẩy và chỉ số khối cơ thể của bạn'
+                              : 'AI maps your push-up capacity and body mass index'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-[#2E7D32] uppercase">Ready</span>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-between gap-4 py-2">
+                      <div className="flex items-baseline gap-4">
+                        <span className="font-telemetry text-sm font-bold text-[#C42126] w-6">
+                          02
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-[#333333]">
+                            {language === 'vi'
+                              ? 'Bộ Lọc Bảo Vệ An Toàn Khớp'
+                              : 'Joint Contraindication Safety Filter'}
+                          </p>
+                          <p className="text-xs text-[#5C5C5C] mt-0.5">
+                            {language === 'vi'
+                              ? 'Loại trừ 100% bài tập gây áp lực lên vùng chấn thương đã khai báo'
+                              : 'Excludes 100% of drills stressing declared injury zones'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-[#2E7D32] uppercase">Active</span>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-between gap-4 py-2">
+                      <div className="flex items-baseline gap-4">
+                        <span className="font-telemetry text-sm font-bold text-[#C42126] w-6">
+                          03
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-[#333333]">
+                            {t('noRoutineAvailable')}
+                          </p>
+                          <p className="text-xs text-[#5C5C5C] mt-0.5">
+                            {language === 'vi'
+                              ? 'Mở thư viện Giáo Án AI để khởi tạo lộ trình tập luyện hôm nay'
+                              : 'Open AI Workouts library to initialize your daily exercises'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-[#C42126] uppercase">Action</span>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 pt-3 border-t border-[#D6D6D2] flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs text-[#5C5C5C]">{t('giantUiModeDesc')}</span>
+                    <Link
+                      href="/workout"
+                      className="px-6 py-2.5 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                    >
                       {t('openLibraryBtn')}
-                    </GiantButton>
-                  </Link>
-                </div>
+                    </Link>
+                  </div>
+                </>
               )}
             </div>
 
-            {/* 1-TAP DAILY NUTRITION CHECK-IN */}
-            <div className="feature-card rounded-3xl p-6 md:p-7 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#C8F135]/15 border border-[#C8F135]/35 flex items-center justify-center text-[#C8F135]">
-                    <Utensils className="w-5 h-5" />
-                  </div>
-                  <h4 className="font-display font-bold text-2xl text-white tracking-wide uppercase">
-                    {t('oneTapCheckInTitle')}
-                  </h4>
+            {/* 1-TAP DAILY NUTRITION CHECK-IN (Single-layer tile with segmented hairline strip) */}
+            <div className="bento-tile p-4 sm:p-5 space-y-2.5 shrink-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#333333]">{t('oneTapCheckInTitle')}</h3>
+                  <p className="text-xs text-[#5C5C5C] mt-0.5">{t('oneTapCheckInSubtitle')}</p>
                 </div>
                 {isNutritionDoneToday && (
-                  <span className="text-xs font-black text-[#0B0F07] bg-[#C8F135] px-3 py-1 rounded-full">
-                    ✓ {checkedCalorieType} (+5 FitCoins)
+                  <span className="text-xs font-bold text-[#2E7D32]">
+                    ✓{' '}
+                    {language === 'vi'
+                      ? 'Đã nhận +5 FitCoins hôm nay'
+                      : '+5 FitCoins claimed today'}
                   </span>
                 )}
               </div>
 
-              <p className="text-xs text-[#9BA394] font-medium">
-                {t('oneTapCheckInSubtitle')}
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 border border-[#D6D6D2] rounded-lg overflow-hidden divide-y sm:divide-y-0 sm:divide-x divide-[#D6D6D2] bg-[#F5F5F0]">
                 <button
+                  type="button"
                   onClick={() => handleNutritionCheckIn('DEFICIT')}
-                  disabled={checkingIn}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  disabled={checkingIn || isNutritionDoneToday}
+                  className={`p-2.5 sm:p-3 text-left transition-colors ${
                     checkedCalorieType === 'DEFICIT'
-                      ? 'bg-[#C8F135] text-[#0B0F07] border-[#C8F135] shadow-[0_0_24px_rgba(200,241,53,0.25)]'
-                      : 'bg-[#12190D] hover:bg-[#192310] text-white border-white/10 hover:border-[#C8F135]/40'
+                      ? 'bg-[#333333] text-[#FFFFFF] cursor-default'
+                      : isNutritionDoneToday
+                        ? 'text-[#5C5C5C] opacity-50 cursor-not-allowed'
+                        : 'text-[#333333] hover:bg-[#EBEBE6] cursor-pointer'
                   }`}
                 >
-                  <div className="font-display font-black text-lg tracking-wide uppercase">
-                    🥗 {t('calorieDeficit')}
+                  <div className="text-xs font-bold uppercase flex items-center justify-between gap-1">
+                    <span>{t('calorieDeficit')}</span>
+                    {checkedCalorieType === 'DEFICIT' && <span>✓</span>}
                   </div>
-                  <div className="text-xs opacity-80 font-medium mt-1">
-                    {t('calorieDeficitDesc')}
-                  </div>
+                  <div className="text-[11px] opacity-75 mt-0.5">{t('calorieDeficitDesc')}</div>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleNutritionCheckIn('MAINTENANCE')}
-                  disabled={checkingIn}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  disabled={checkingIn || isNutritionDoneToday}
+                  className={`p-2.5 sm:p-3 text-left transition-colors ${
                     checkedCalorieType === 'MAINTENANCE'
-                      ? 'bg-[#C8F135] text-[#0B0F07] border-[#C8F135] shadow-[0_0_24px_rgba(200,241,53,0.25)]'
-                      : 'bg-[#12190D] hover:bg-[#192310] text-white border-white/10 hover:border-[#C8F135]/40'
+                      ? 'bg-[#333333] text-[#FFFFFF] cursor-default'
+                      : isNutritionDoneToday
+                        ? 'text-[#5C5C5C] opacity-50 cursor-not-allowed'
+                        : 'text-[#333333] hover:bg-[#EBEBE6] cursor-pointer'
                   }`}
                 >
-                  <div className="font-display font-black text-lg tracking-wide uppercase">
-                    ⚖️ {t('calorieMaintenance')}
+                  <div className="text-xs font-bold uppercase flex items-center justify-between gap-1">
+                    <span>{t('calorieMaintenance')}</span>
+                    {checkedCalorieType === 'MAINTENANCE' && <span>✓</span>}
                   </div>
-                  <div className="text-xs opacity-80 font-medium mt-1">
-                    {t('calorieMaintenanceDesc')}
-                  </div>
+                  <div className="text-[11px] opacity-75 mt-0.5">{t('calorieMaintenanceDesc')}</div>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleNutritionCheckIn('SURPLUS')}
-                  disabled={checkingIn}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  disabled={checkingIn || isNutritionDoneToday}
+                  className={`p-2.5 sm:p-3 text-left transition-colors ${
                     checkedCalorieType === 'SURPLUS'
-                      ? 'bg-[#C8F135] text-[#0B0F07] border-[#C8F135] shadow-[0_0_24px_rgba(200,241,53,0.25)]'
-                      : 'bg-[#12190D] hover:bg-[#192310] text-white border-white/10 hover:border-[#C8F135]/40'
+                      ? 'bg-[#333333] text-[#FFFFFF] cursor-default'
+                      : isNutritionDoneToday
+                        ? 'text-[#5C5C5C] opacity-50 cursor-not-allowed'
+                        : 'text-[#333333] hover:bg-[#EBEBE6] cursor-pointer'
                   }`}
                 >
-                  <div className="font-display font-black text-lg tracking-wide uppercase">
-                    🥩 {t('calorieSurplus')}
+                  <div className="text-xs font-bold uppercase flex items-center justify-between gap-1">
+                    <span>{t('calorieSurplus')}</span>
+                    {checkedCalorieType === 'SURPLUS' && <span>✓</span>}
                   </div>
-                  <div className="text-xs opacity-80 font-medium mt-1">
-                    {t('calorieSurplusDesc')}
-                  </div>
+                  <div className="text-[11px] opacity-75 mt-0.5">{t('calorieSurplusDesc')}</div>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* RIGHT 4 COLUMNS: LEVELING + BUDDY CO-OP + VIRTUAL WALLET */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* GAMIFICATION LEVELING CARD */}
-            <div className="glass-hud rounded-3xl p-6 space-y-4 border border-white/14">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#C8F135] text-[#0B0F07] flex items-center justify-center font-display font-black text-2xl shadow-[0_0_20px_rgba(200,241,53,0.3)]">
-                    L{levelInfo.level}
-                  </div>
-                  <div>
-                    <h5 className="font-extrabold text-white text-base leading-tight">
-                      {user?.name || 'Athlete'}
-                    </h5>
-                    <span className="text-xs text-[#C8F135] font-bold uppercase tracking-wider">
-                      {user?.profile?.fitnessLevel || 'BEGINNER'} {t('athlete')}
-                    </span>
-                  </div>
+          {/* RIGHT 4 COLUMNS: Equal height with Left Column via CSS Grid */}
+          <div ref={rightColRef} className="lg:col-span-4 flex flex-col justify-between gap-5 sm:gap-6 min-h-0">
+            {/* SINGLE-LAYER LEVELING & WALLET TILE (Divided by 1px #D6D6D2 hairlines — zero inner cards!) */}
+            <div className="bento-tile p-5 shrink-0">
+              <div className="flex items-center justify-between pb-3 border-b border-[#D6D6D2]">
+                <div>
+                  <h4 className="font-bold text-[#333333] text-base leading-tight">{displayName || 'Athlete'}</h4>
+                  <span className="text-[11px] text-[#C42126] font-semibold uppercase block mt-0.5">
+                    {t('level')} 0{levelInfo.level} •{' '}
+                    {getFitnessLevelLabel(user?.profile?.fitnessLevel || 'BEGINNER', language)}
+                  </span>
                 </div>
-
                 <Link
                   href="/profile"
-                  className="p-2.5 rounded-xl bg-white/5 hover:bg-[#C8F135] text-white hover:text-[#0B0F07] border border-white/10 transition-colors"
+                  className="text-xs font-semibold text-[#5C5C5C] hover:text-[#333333] flex items-center gap-0.5"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <span>{language === 'vi' ? 'Hồ sơ' : 'Profile'}</span>
+                  <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
 
-              {/* Root-Curve Leveling Progress Bar */}
-              <div className="space-y-1.5 pt-3 border-t border-white/10">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-[#9BA394]">
+              {/* XP Progress Bar (Compact inline progress & remaining XP) */}
+              <div className="py-2.5 border-b border-[#D6D6D2] space-y-1.5">
+                <div className="flex justify-between items-baseline text-xs font-semibold">
+                  <span className="text-[#5C5C5C]">
                     {t('level')} {levelInfo.level} ➔ {levelInfo.level + 1}
+                    <span className="text-[#C42126] font-telemetry font-bold ml-1.5">
+                      ({levelInfo.progressPercent}%)
+                    </span>
                   </span>
-                  <span className="text-[#C8F135] font-telemetry">{levelInfo.progressPercent}%</span>
+                  <span className="text-[11px] text-[#5C5C5C]">
+                    {language === 'vi' ? 'Cần ' : 'Need '}
+                    <strong className="text-[#333333]">{levelInfo.xpRemainingToNextLevel} XP</strong>
+                  </span>
                 </div>
-                <div className="w-full h-3 bg-[#0A0E07] rounded-full overflow-hidden p-0.5 border border-white/10">
+                <div className="w-full h-1.5 bg-[#D6D6D2] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#C8F135] rounded-full transition-all duration-500 shadow-[0_0_12px_#C8F135]"
+                    className="h-full bg-[#C42126] rounded-full transition-all duration-500"
                     style={{ width: `${levelInfo.progressPercent}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-[#9BA394] text-right font-medium">
-                  {language === 'vi' ? 'Cần ' : 'Need '}
-                  <strong className="text-[#C8F135]">{levelInfo.xpRemainingToNextLevel} XP</strong>
-                  {' ' + t('xpNeedToNext')}
-                </p>
               </div>
 
-              {/* Quick Stats Grid */}
-              <div className="grid grid-cols-2 gap-2.5 pt-2">
-                <div className="bg-[#0D1309] p-3.5 rounded-2xl border border-white/10">
-                  <div className="flex items-center space-x-1.5 text-[#C8F135] text-xs font-bold mb-1">
-                    <Flame className="w-4 h-4 fill-[#C8F135]" />
+              {/* Flush 2-Column Hairline Split (Compact Telemetry Numbers) */}
+              <div className="py-2.5 border-b border-[#D6D6D2] grid grid-cols-2 divide-x divide-[#D6D6D2]">
+                <div className="pr-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C5C5C] flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-[#C42126]" />
                     <span>{t('streak')}</span>
                   </div>
-                  <span className="font-telemetry text-2xl font-black text-white">
-                    {user?.currentStreak || 0} {t('days')}
-                  </span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="font-display text-2xl font-extrabold text-[#333333] leading-none font-telemetry">
+                      {user?.currentStreak || 0}
+                    </span>
+                    <span className="text-[11px] text-[#5C5C5C] font-semibold">{t('days')}</span>
+                  </div>
                 </div>
 
-                <div className="bg-[#0D1309] p-3.5 rounded-2xl border border-white/10">
-                  <div className="flex items-center space-x-1.5 text-[#FBBF24] text-xs font-bold mb-1">
-                    <Coins className="w-4 h-4 fill-[#FBBF24]" />
+                <div className="pl-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C5C5C] flex items-center gap-1">
+                    <Coins className="w-3.5 h-3.5 text-[#C42126]" />
                     <span>{t('fitcoins')}</span>
                   </div>
-                  <span className="font-telemetry text-2xl font-black text-[#FBBF24]">
-                    {user?.fitCoins || 0}
-                  </span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="font-display text-2xl font-extrabold text-[#C42126] leading-none font-telemetry">
+                      {user?.fitCoins || 0}
+                    </span>
+                    <span className="text-[11px] text-[#5C5C5C] font-semibold">FitCoins</span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Flush Shop Link */}
+              <div className="pt-2.5 flex items-center justify-between text-xs">
+                <span className="text-[#5C5C5C] text-[11px]">{t('quickShopPromo')}</span>
+                <Link href="/shop" className="font-bold text-[#C42126] hover:underline text-xs flex items-center gap-0.5">
+                  <span>{t('visitShop')}</span>
+                  <span>→</span>
+                </Link>
               </div>
             </div>
 
@@ -937,46 +1133,23 @@ export default function HomePage() {
                 onOpenGiftModal={() => setIsGiftModalOpen(true)}
               />
             ) : (
-              <div className="feature-card rounded-3xl p-6 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#C8F135] uppercase tracking-wider">
+              <div className="bento-tile p-6 flex-1 flex flex-col justify-between gap-3">
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-[#C42126] uppercase tracking-wider">
                     {t('buddySystemBadge')}
-                  </span>
-                  <span className="text-[11px] bg-white/10 text-white px-2.5 py-0.5 rounded-full font-bold">
-                    {t('noBuddyCardTitle')}
-                  </span>
+                  </div>
+                  <h4 className="font-display font-bold text-[#333333] text-2xl uppercase">
+                    {t('buddyTitle')}
+                  </h4>
+                  <p className="text-xs text-[#5C5C5C] leading-relaxed">{t('noBuddyCardDesc')}</p>
                 </div>
-                <h4 className="font-display font-bold text-white text-2xl uppercase tracking-wide">
-                  {t('buddyTitle')}
-                </h4>
-                <p className="text-xs text-[#9BA394] font-medium leading-relaxed">
-                  {t('noBuddyCardDesc')}
-                </p>
-                <Link href="/buddy" className="block pt-2">
-                  <button className="w-full volt-pill-btn py-3.5 px-4 rounded-2xl font-black text-xs uppercase transition-all cursor-pointer">
+                <Link href="/buddy" className="block pt-1">
+                  <button className="w-full py-2.5 px-4 rounded-lg btn-cta-red font-semibold text-xs uppercase cursor-pointer">
                     {t('openRadarBtn')}
                   </button>
                 </Link>
               </div>
             )}
-
-            {/* FITCOIN SHOP PROMO */}
-            <div className="feature-card rounded-3xl p-6 space-y-3 border border-[#FBBF24]/30">
-              <div className="flex items-center space-x-2">
-                <Shield className="w-5 h-5 text-[#FBBF24]" />
-                <h5 className="font-display font-bold text-[#FBBF24] text-lg uppercase tracking-wider">
-                  {t('quickShopPromo')}
-                </h5>
-              </div>
-              <p className="text-xs text-[#C2C9BC] font-medium">
-                {t('quickShopPromoDesc')}
-              </p>
-              <Link href="/shop" className="block pt-1">
-                <button className="w-full bg-[#FBBF24] hover:bg-[#F59E0B] text-[#0B0F07] py-3 rounded-xl font-black text-xs uppercase transition-colors cursor-pointer">
-                  {t('visitShop')}
-                </button>
-              </Link>
-            </div>
           </div>
         </div>
       </section>
@@ -985,7 +1158,7 @@ export default function HomePage() {
       {buddyData?.hasBuddy && (
         <GiftFreezeModal
           isOpen={isGiftModalOpen}
-          partnerName={buddyData.partner.name}
+          partnerName={formatPersonName(buddyData.partner.name, language)}
           myFreezeCount={user?.streakFreezeCount || 0}
           onClose={() => setIsGiftModalOpen(false)}
           onSendGift={async (note) => {

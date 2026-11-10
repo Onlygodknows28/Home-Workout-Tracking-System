@@ -4,55 +4,70 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useDataCache } from '../../context/DataCacheContext';
+import { useDataCache, CACHE_KEYS } from '../../context/DataCacheContext';
 import { ApiClient } from '../../lib/api';
+import { useDesktopHeightSync } from '../../lib/utils';
 import {
   Flame,
   Shield,
   Coins,
-  Scale,
-  History,
   LogOut,
-  Sparkles,
   ShieldAlert,
   Edit3,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import {
+  getWorkoutPlanTitle,
+  formatPersonName,
+  getFitnessLevelLabel,
+  getGoalLabel,
+  formatInjuryList,
+} from '../../lib/catalogTranslations';
+
+const INITIAL_HISTORY_LIMIT = 4;
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const { t } = useLanguage();
-  const { getCache, setCache, isFresh } = useDataCache();
+  const { user, isAuthenticated, isLoading, isAuthReady, logout } = useAuth();
+  const { t, language } = useLanguage();
+  const { getCache, setCache, isFresh, isCacheHydrated } = useDataCache();
 
-  const [history, setHistory] = useState<any[]>(() => getCache('workout_history') || []);
-  const [isDataLoading, setIsDataLoading] = useState(() => !getCache('workout_history'));
+  const [history, setHistory] = useState<any[]>(() => getCache(CACHE_KEYS.WORKOUT_HISTORY) || []);
+  const [isDataLoading, setIsDataLoading] = useState(() => !getCache(CACHE_KEYS.WORKOUT_HISTORY));
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [leftCardRef, leftCardHeight] = useDesktopHeightSync([user, isDataLoading]);
 
   useEffect(() => {
+    if (!isAuthReady) return;
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated) {
+    if (isAuthenticated && isCacheHydrated) {
       loadHistory();
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, isAuthReady, isCacheHydrated]);
 
   const loadHistory = async (forceSpinner = false) => {
-    if (!forceSpinner && isFresh('workout_history', 60000)) {
-      setHistory(getCache('workout_history') || []);
-      setIsDataLoading(false);
-      return;
-    }
+    const cachedHistory = getCache<any[]>(CACHE_KEYS.WORKOUT_HISTORY);
 
-    if (!getCache('workout_history') || forceSpinner) {
+    if (cachedHistory && !forceSpinner) {
+      setHistory(cachedHistory);
+      setIsDataLoading(false);
+      if (isFresh(CACHE_KEYS.WORKOUT_HISTORY, 180000)) {
+        return;
+      }
+    } else if (forceSpinner) {
       setIsDataLoading(true);
     }
+
     try {
       const logs = await ApiClient.getWorkoutHistory();
       if (logs) {
         setHistory(logs);
-        setCache('workout_history', logs);
+        setCache(CACHE_KEYS.WORKOUT_HISTORY, logs);
       }
     } catch (e) {
       console.error(e);
@@ -69,8 +84,8 @@ export default function ProfilePage() {
   if (isLoading || isDataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-center">
-        <div className="w-10 h-10 border-4 border-[#52B72B] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-500 font-bold">Loading profile...</p>
+        <div className="w-10 h-10 border-3 border-[#C42126] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-[#5C5C5C] font-semibold">Loading profile...</p>
       </div>
     );
   }
@@ -86,231 +101,238 @@ export default function ProfilePage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* 1. User Profile Hero Card */}
-      <div className="bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <img
-                src={user?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
-                alt={user?.name}
-                className="w-20 h-20 rounded-3xl border-2 border-[#52B72B] object-cover bg-[#F5FAF2]"
-              />
-              <span className="absolute -bottom-1 -right-1 bg-[#52B72B] text-xs font-black text-white px-2 py-0.5 rounded-lg shadow-sm">
-                L{user?.level}
+    <div className="max-w-[1220px] mx-auto px-5 sm:px-8 py-8 space-y-8">
+      {/* 1. Open-Canvas User Profile Header & Telemetry (Zero outer card wrapper!) */}
+      <div className="pb-6 border-b border-[#D6D6D2] flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <img
+            src={user?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
+            alt={user?.name}
+            className="w-16 h-16 rounded-full border border-[#D6D6D2] object-cover bg-[#EBEBE6]"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-4xl font-extrabold text-[#333333] leading-none">
+                {formatPersonName(user?.name, language)}
+              </h1>
+              <span className="font-telemetry text-xs font-bold text-[#C42126]">
+                LV.{user?.level}
+              </span>
+            </div>
+            <p className="text-xs text-[#5C5C5C] mt-1">
+              {user?.email} •{' '}
+              <strong className="text-[#333333]">
+                {getFitnessLevelLabel(profile?.fitnessLevel || 'BEGINNER', language)} {t('athlete')}
+              </strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Flush 3-Column Hairline Telemetry + Logout */}
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-center divide-x divide-[#D6D6D2]">
+            <div className="pr-5">
+              <span className="text-[11px] font-semibold uppercase text-[#5C5C5C] flex items-center gap-1">
+                <Flame className="w-3.5 h-3.5 text-[#C42126]" />
+                <span>{t('streak')}</span>
+              </span>
+              <span className="font-display text-3xl font-extrabold text-[#333333] font-telemetry">
+                {user?.currentStreak} {t('days')}
               </span>
             </div>
 
-            <div>
-              <h2 className="text-2xl font-black text-[#1B3815]">{user?.name}</h2>
-              <p className="text-xs text-slate-500">{user?.email}</p>
-              <span className="inline-block text-xs bg-[#EAF6E5] text-[#1B3815] font-black px-3 py-0.5 rounded-full mt-1.5 border border-[#D8EACF] uppercase">
-                {profile?.fitnessLevel || 'BEGINNER'} {t('athlete')}
+            <div className="px-5">
+              <span className="text-[11px] font-semibold uppercase text-[#5C5C5C] flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-[#C42126]" />
+                <span>{t('fitcoins')}</span>
+              </span>
+              <span className="font-display text-3xl font-extrabold text-[#C42126] font-telemetry">
+                {user?.fitCoins}
+              </span>
+            </div>
+
+            <div className="pl-5">
+              <span className="text-[11px] font-semibold uppercase text-[#5C5C5C] flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-[#2E7D32]" />
+                <span>{t('freezes')}</span>
+              </span>
+              <span className="font-display text-3xl font-extrabold text-[#333333] font-telemetry">
+                {user?.streakFreezeCount}
               </span>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
-            className="flex items-center space-x-1.5 self-start sm:self-auto bg-[#FEE2E2] hover:bg-[#FECACA] text-[#DC2626] font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-[#FDE8E9] hover:bg-[#C42126] text-[#C42126] hover:text-white font-semibold text-xs px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>{t('navLogout')}</span>
           </button>
         </div>
-
-        {/* 3 Metrics Row */}
-        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#EAF6E5]">
-          <div className="bg-[#FEF3C7] p-4 rounded-2xl text-center border border-[#F59E0B]">
-            <div className="flex items-center justify-center space-x-1 text-[#D97706] mb-1">
-              <Flame className="w-4 h-4 fill-[#D97706]" />
-              <span className="text-xs font-black uppercase">{t('streak')}</span>
-            </div>
-            <span className="text-xl sm:text-2xl font-black text-[#1B3815]">{user?.currentStreak} {t('days')}</span>
-          </div>
-
-          <div className="bg-[#EAF6E5] p-4 rounded-2xl text-center border border-[#52B72B]">
-            <div className="flex items-center justify-center space-x-1 text-[#52B72B] mb-1">
-              <Coins className="w-4 h-4 fill-[#52B72B]" />
-              <span className="text-xs font-black uppercase">{t('fitcoins')}</span>
-            </div>
-            <span className="text-xl sm:text-2xl font-black text-[#1B3815]">{user?.fitCoins}</span>
-          </div>
-
-          <div className="bg-[#EFF6FF] p-4 rounded-2xl text-center border border-[#3B82F6]">
-            <div className="flex items-center justify-center space-x-1 text-[#2563EB] mb-1">
-              <Shield className="w-4 h-4 fill-[#2563EB]" />
-              <span className="text-xs font-black uppercase">{t('freezes')}</span>
-            </div>
-            <span className="text-xl sm:text-2xl font-black text-[#1B3815]">{user?.streakFreezeCount}</span>
-          </div>
-        </div>
       </div>
 
-      {/* Multi-Column Desktop Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column (6 cols): Leveling + Physical Profile */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Mathematical Leveling Interpolation Details */}
-          <div className="bg-[#1B3815] text-white border-2 border-[#2E4E26] rounded-3xl p-6 sm:p-8 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-[#FBBF24]" />
-                <h3 className="text-sm font-black uppercase tracking-wider text-white">
-                  {t('levelFormulaTitle')}
-                </h3>
-              </div>
-              <span className="text-xs font-black text-[#FBBF24] font-mono">
+      {/* Multi-Column Grid: 5 Cols Physical Profile (Fixed Natural Height) + 7 Cols Workout History (Flexible Height) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+        {/* Left 5 Cols: Single-Layer Physical & Leveling Tile (Fixed height based on its own content) */}
+        <div
+          ref={leftCardRef}
+          className="lg:col-span-5 bento-tile p-6 sm:p-7 space-y-5"
+        >
+          {/* Level Progress Block */}
+          <div className="pb-5 border-b border-[#D6D6D2] space-y-2">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-[#333333]">
+                {t('levelFormulaTitle')}
+              </h3>
+              <span className="font-telemetry text-xs font-bold text-[#C42126]">
                 L{level} ➔ L{level + 1}
               </span>
             </div>
-
-            <div className="bg-[#11240D] p-3.5 rounded-2xl border border-[#2E4E26] text-xs text-white/90 font-mono">
-              {t('formulaText')}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-white/80">{t('currentLevelProgress')}</span>
-                <span className="text-[#FBBF24]">{currentXp} / {xpNext} XP ({progressPercent}%)</span>
+            <p className="text-xs text-[#5C5C5C] font-mono">{t('formulaText')}</p>
+            <div className="pt-1">
+              <div className="flex justify-between text-xs font-semibold mb-1">
+                <span className="text-[#5C5C5C]">{t('currentLevelProgress')}</span>
+                <span className="text-[#333333] font-telemetry font-bold">
+                  {currentXp} / {xpNext} XP ({progressPercent}%)
+                </span>
               </div>
-              <div className="w-full h-3 bg-[#11240D] rounded-full overflow-hidden p-0.5 border border-[#2E4E26]">
+              <div className="w-full h-1.5 bg-[#D6D6D2] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[#52B72B] rounded-full transition-all duration-500"
+                  className="h-full bg-[#C42126] rounded-full transition-all duration-500"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Static Physical & Health Profile */}
+          {/* Physical Metrics Hairline Rows (Zero nested boxes!) */}
           {profile && (
-            <div className="bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Scale className="w-5 h-5 text-[#52B72B]" />
-                  <h3 className="text-sm font-black text-[#1B3815] uppercase tracking-wider">
-                    {t('physicalHealthProfile')}
-                  </h3>
-                </div>
+                <h3 className="text-sm font-bold text-[#333333] uppercase tracking-wider">
+                  {t('physicalHealthProfile')}
+                </h3>
                 <button
                   onClick={() => router.push('/onboarding')}
-                  className="text-xs font-black text-[#52B72B] flex items-center space-x-1 cursor-pointer"
+                  className="text-xs font-semibold text-[#C42126] hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>{t('updateBtn')}</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                  <span className="text-slate-500 block font-bold">{t('heightAndWeight')}</span>
-                  <span className="text-[#1B3815] font-black text-sm mt-0.5 block">
+              <div className="divide-y divide-[#D6D6D2] border-y border-[#D6D6D2] text-xs">
+                <div className="py-3 flex justify-between">
+                  <span className="text-[#5C5C5C]">{t('heightAndWeight')}</span>
+                  <span className="font-bold text-[#333333]">
                     {profile.height} cm • {profile.weight} kg
                   </span>
                 </div>
-
-                <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                  <span className="text-slate-500 block font-bold">{t('bmiIndex')}</span>
-                  <span className="text-[#52B72B] font-black text-sm mt-0.5 block">
-                    {profile.bmi}
-                  </span>
+                <div className="py-3 flex justify-between">
+                  <span className="text-[#5C5C5C]">{t('bmiIndex')}</span>
+                  <span className="font-bold text-[#2E7D32] font-telemetry">{profile.bmi}</span>
                 </div>
-
-                <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                  <span className="text-slate-500 block font-bold">{t('pushupTestScore')}</span>
-                  <span className="text-[#1B3815] font-black text-sm mt-0.5 block">
+                <div className="py-3 flex justify-between">
+                  <span className="text-[#5C5C5C]">{t('pushupTestScore')}</span>
+                  <span className="font-bold text-[#333333] font-telemetry">
                     {profile.pushupBaseline} {t('reps')}
                   </span>
                 </div>
-
-                <div className="bg-[#FAFCF8] p-3.5 rounded-2xl border border-[#D8EACF]">
-                  <span className="text-slate-500 block font-bold">{t('primaryGoalLabel')}</span>
-                  <span className="text-[#52B72B] font-black text-sm mt-0.5 block">
-                    {profile.primaryGoal}
+                <div className="py-3 flex justify-between">
+                  <span className="text-[#5C5C5C]">{t('primaryGoalLabel')}</span>
+                  <span className="font-bold text-[#C42126]">
+                    {getGoalLabel(profile.primaryGoal, language)}
                   </span>
                 </div>
               </div>
 
-              {/* Declared Injuries Tag */}
-              <div className="pt-2 border-t border-[#EAF6E5]">
-                <span className="text-xs font-bold text-[#DC2626] block mb-2 flex items-center space-x-1.5">
+              {/* Declared Injuries Flush Warning Banner */}
+              <div className="pt-1">
+                <span className="text-xs font-bold text-[#C42126] flex items-center gap-1.5 mb-1.5">
                   <ShieldAlert className="w-4 h-4" />
                   <span>{t('injuriesFilteredTitle')}</span>
                 </span>
-                <div className="flex flex-wrap gap-2">
-                  {profile.injuries && profile.injuries.length > 0 ? (
-                    profile.injuries.map((inj: string) => (
-                      <span
-                        key={inj}
-                        className="bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] text-xs font-black px-3 py-1 rounded-xl"
-                      >
-                        🛡️ {inj}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500 bg-[#FAFCF8] px-3 py-1 rounded-xl font-medium">
-                      {t('noInjuries')}
-                    </span>
-                  )}
-                </div>
+                {profile.injuries && profile.injuries.length > 0 ? (
+                  <div className="bg-[#FDE8E9] border border-[#C42126]/30 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-[#C42126]">
+                    {formatInjuryList(profile.injuries, language)}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#5C5C5C]">{t('noInjuries')}</p>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column (6 cols): Workout History Logs */}
-        <div className="lg:col-span-6 space-y-4">
-          <div className="bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-            <div className="flex items-center space-x-2">
-              <History className="w-5 h-5 text-[#52B72B]" />
-              <h3 className="text-sm font-black text-[#1B3815] uppercase tracking-wider">
+        {/* Right 7 Cols: Single-Layer Workout History Roster
+            - Matches Left Card height ONLY when shortened (!showAllHistory && history.length > INITIAL_HISTORY_LIMIT)
+            - Flexible height when list is short (<= 4) or expanded (showAllHistory === true) */}
+        <div
+          style={
+            !showAllHistory && history.length > INITIAL_HISTORY_LIMIT && leftCardHeight
+              ? { height: `${leftCardHeight}px` }
+              : undefined
+          }
+          className="lg:col-span-7 bento-tile p-6 sm:p-7 flex flex-col justify-between"
+        >
+          <div>
+            <div className="pb-3.5 border-b border-[#D6D6D2] flex items-baseline justify-between">
+              <h3 className="text-sm font-bold text-[#333333] uppercase tracking-wider">
                 {t('recentHistoryTitle')} ({history.length})
               </h3>
+              <span className="text-xs text-[#5C5C5C]">XP &amp; FitCoins Log</span>
             </div>
 
-            <div className="space-y-3">
-              {history.map((log) => {
-                const dateStr = new Date(log.completedAt).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+            <div className="divide-y divide-[#D6D6D2]">
+              {(showAllHistory ? history : history.slice(0, INITIAL_HISTORY_LIMIT)).map((log) => {
+                const dateStr = new Date(log.completedAt).toLocaleDateString(
+                  language === 'vi' ? 'vi-VN' : 'en-US',
+                  {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  },
+                );
 
                 return (
                   <div
                     key={log.id}
-                    className="bg-[#FAFCF8] border border-[#D8EACF] rounded-2xl p-4 flex items-center justify-between space-x-3"
+                    className={`${
+                      !showAllHistory && history.length > INITIAL_HISTORY_LIMIT
+                        ? 'py-2.5'
+                        : 'py-3.5'
+                    } flex items-center justify-between gap-4`}
                   >
                     <div>
-                      <h5 className="font-black text-[#1B3815] text-sm leading-tight">
-                        {log.workoutTitle}
-                      </h5>
-                      <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                        {dateStr} • {Math.round(log.durationSeconds / 60)} {t('minutes')} • {log.totalReps} {t('reps')}
-                      </p>
-                      <div className="mt-1.5">
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-bold text-[#333333] text-sm">
+                          {getWorkoutPlanTitle(log.workoutTitle, language) || log.workoutTitle}
+                        </h5>
                         <span
-                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                          className={`text-[11px] font-bold ${
                             log.rpeScore === 1
-                              ? 'bg-[#EAF6E5] text-[#52B72B] border border-[#52B72B]'
+                              ? 'text-[#2E7D32]'
                               : log.rpeScore === 2
-                              ? 'bg-[#FEF3C7] text-[#D97706] border border-[#F59E0B]'
-                              : 'bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626]'
+                                ? 'text-[#333333]'
+                                : 'text-[#C42126]'
                           }`}
                         >
-                          RPE {log.rpeScore} ({log.rpeScore === 1 ? 'Easy' : log.rpeScore === 2 ? 'Optimal' : 'Hard'})
+                          • RPE {log.rpeScore}
                         </span>
                       </div>
+                      <p className="text-xs text-[#5C5C5C] mt-0.5">
+                        {dateStr} • {Math.round(log.durationSeconds / 60)} {t('minutes')} •{' '}
+                        {log.totalReps} {t('reps')}
+                      </p>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className="text-sm font-black text-[#52B72B] block">
+                    <div className="text-right shrink-0 font-telemetry">
+                      <span className="text-sm font-bold text-[#2E7D32] block">
                         +{log.earnedXp} XP
                       </span>
-                      <span className="text-xs font-black text-[#D97706]">
+                      <span className="text-xs font-semibold text-[#C42126]">
                         +{log.earnedCoins} Coins
                       </span>
                     </div>
@@ -319,12 +341,35 @@ export default function ProfilePage() {
               })}
 
               {history.length === 0 && (
-                <p className="text-xs text-slate-500 text-center py-6 font-medium">
-                  {t('noHistoryYet')}
-                </p>
+                <p className="text-xs text-[#5C5C5C] text-center py-8">{t('noHistoryYet')}</p>
               )}
             </div>
           </div>
+
+          {history.length > INITIAL_HISTORY_LIMIT && (
+            <div className="pt-3 border-t border-[#D6D6D2] mt-auto">
+              <button
+                onClick={() => setShowAllHistory((prev) => !prev)}
+                className="w-full py-2 px-4 rounded-lg bg-[#F5F5F0] border border-[#D6D6D2] hover:border-[#C42126] hover:text-[#C42126] text-[#333333] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                {showAllHistory ? (
+                  <>
+                    <span>{language === 'vi' ? 'Thu gọn danh sách' : 'Show less'}</span>
+                    <ChevronUp className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {language === 'vi'
+                        ? `Xem thêm (${history.length - INITIAL_HISTORY_LIMIT} buổi tập)`
+                        : `More (${history.length - INITIAL_HISTORY_LIMIT} more)`}
+                    </span>
+                    <ChevronDown className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

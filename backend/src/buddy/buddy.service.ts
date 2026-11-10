@@ -85,10 +85,38 @@ export class BuddyService {
     const totalRepsToday = mission.user1Progress + mission.user2Progress;
     const missionProgressPercent = Math.min(100, Math.round((totalRepsToday / mission.targetReps) * 100));
 
+    // Shared Streak Continuity & Fairness Evaluation
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    let sharedStreak = pair.sharedStreak;
+
+    // If the pair missed yesterday (lastSyncedDate is neither today nor yesterday):
+    // The shared streak has broken and must reset to 0!
+    if (pair.lastSyncedDate !== today && pair.lastSyncedDate !== yesterday) {
+      if (sharedStreak !== 0) {
+        sharedStreak = 0;
+        await this.prisma.buddyPair.update({
+          where: { id: pair.id },
+          data: { sharedStreak: 0 },
+        });
+        this.logger.log(`Buddy Pair ${pair.id} shared streak reset to 0 due to missed sync yesterday.`);
+      }
+    }
+
+    // Fairness Ceiling: A pair's shared streak cannot exceed either individual partner's active streak
+    const maxPossibleStreak = Math.min(me.currentStreak || 0, partner.currentStreak || 0);
+    if (sharedStreak > maxPossibleStreak) {
+      sharedStreak = maxPossibleStreak;
+      await this.prisma.buddyPair.update({
+        where: { id: pair.id },
+        data: { sharedStreak: maxPossibleStreak },
+      });
+      this.logger.log(`Buddy Pair ${pair.id} shared streak calibrated to fair ceiling of ${maxPossibleStreak}.`);
+    }
+
     return {
       hasBuddy: true,
       pairId: pair.id,
-      sharedStreak: pair.sharedStreak,
+      sharedStreak,
       partner: {
         id: partner.id,
         name: partner.name,

@@ -8,6 +8,7 @@ import { WorkoutProvider } from '../context/WorkoutContext';
 import { TopHeader } from '../components/layout/TopHeader';
 import { MobileNav } from '../components/layout/MobileNav';
 import { MiniWorkoutBar } from '../components/workout/MiniWorkoutBar';
+import { AiCoachChatbot } from '../components/workout/AiCoachChatbot';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin', 'vietnamese'],
@@ -47,17 +48,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body
-        className="bg-[#0A0E07] text-white min-h-screen antialiased flex flex-col font-sans selection:bg-[#C8F135] selection:text-[#0A0E07]"
+        className="bg-[#F5F5F0] text-[#333333] min-h-screen antialiased flex flex-col font-sans selection:bg-[#C42126] selection:text-white"
         suppressHydrationWarning
       >
         <LanguageProvider>
           <AuthProvider>
             <DataCacheProvider>
               <WorkoutProvider>
-                <div className="w-full min-h-screen flex flex-col pb-20 md:pb-8">
+                <div className="w-full min-h-screen flex flex-col pb-20 md:pb-0">
                   <TopHeader />
                   <main className="flex-1 w-full">{children}</main>
                   <MiniWorkoutBar />
+                  <AiCoachChatbot />
                   <MobileNav />
                 </div>
               </WorkoutProvider>

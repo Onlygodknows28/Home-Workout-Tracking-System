@@ -5,13 +5,22 @@ import confetti from 'canvas-confetti';
 import { useLanguage } from '../../context/LanguageContext';
 import { GiantButton } from '../ui/GiantButton';
 import { playSoundCue } from '../../lib/utils';
-import { Trophy, Coins, Zap, AlertTriangle, ArrowRight, X } from 'lucide-react';
+import {
+  Trophy,
+  Coins,
+  Zap,
+  AlertTriangle,
+  ArrowRight,
+  X,
+  CheckCircle2,
+  Flame,
+  Wind,
+} from 'lucide-react';
 
 interface GiantRpeModalProps {
   isOpen: boolean;
   totalReps: number;
   durationSeconds: number;
-  estimatedDurationMin: number;
   workoutTitle: string;
   onSubmitRpe: (rpeScore: number) => Promise<any>;
   onFinishFlow: () => void;
@@ -21,7 +30,6 @@ export function GiantRpeModal({
   isOpen,
   totalReps,
   durationSeconds,
-  estimatedDurationMin,
   workoutTitle,
   onSubmitRpe,
   onFinishFlow,
@@ -31,6 +39,16 @@ export function GiantRpeModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rewardData, setRewardData] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Reset modal internal state whenever opened/closed
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedRpe(null);
+      setIsSubmitting(false);
+      setRewardData(null);
+      setErrorMsg(null);
+    }
+  }, [isOpen]);
 
   // Allow escaping modal via ESC key
   useEffect(() => {
@@ -59,7 +77,7 @@ export function GiantRpeModal({
 
     try {
       const res = await onSubmitRpe(score);
-      setRewardData(res.rewards || res);
+      setRewardData(res?.rewards || res || { earnedXp: 0, earnedCoins: 0 });
       playSoundCue('finish');
 
       confetti({
@@ -68,7 +86,7 @@ export function GiantRpeModal({
         origin: { y: 0.6 },
       });
 
-      if (res.rewards?.hasLeveledUp) {
+      if (res?.rewards?.hasLeveledUp) {
         setTimeout(() => {
           playSoundCue('levelup');
           confetti({
@@ -86,56 +104,77 @@ export function GiantRpeModal({
     }
   };
 
+  // Strip leading emoji from instruction if present for cleaner editorial typography
+  const cleanInstruction = t('rpeInstruction').replace(/^🎯\s*/, '');
+
   return (
     <div
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-white border-2 border-[#D8EACF] rounded-3xl p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 cursor-default"
+        className="relative w-full max-w-lg bg-[#F5F5F0] border border-[#D6D6D2] rounded-[14px] p-6 sm:p-8 text-[#333333] cursor-default"
       >
         {/* Always Accessible Close Button (X) */}
         <button
           onClick={onFinishFlow}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-[#1B3815] rounded-full hover:bg-[#EAF6E5] transition-colors cursor-pointer z-10"
+          className="absolute top-4 right-4 p-2 text-[#5C5C5C] hover:text-[#C42126] rounded-lg hover:bg-[#EBEBE6] transition-colors cursor-pointer z-10"
           aria-label="Close modal"
           title="Đóng / Close"
         >
-          <X className="w-6 h-6" />
+          <X className="w-5 h-5" />
         </button>
 
         {!rewardData ? (
           <div>
-            {/* Header */}
-            <div className="text-center mb-6 pr-6">
-              <span className="inline-block p-4 rounded-2xl bg-[#EAF6E5] text-[#52B72B] mb-3">
-                <Trophy className="w-9 h-9" />
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-[#1B3815]">{t('workoutFinishedTitle')}</h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
-                {t('workoutFinishedTime')} <strong className="text-[#52B72B]">{Math.round(durationSeconds / 60)} {t('minutes')}</strong> • {t('workoutFinishedReps')} <strong className="text-[#52B72B]">{totalReps}</strong>
-              </p>
-              <div className="mt-3 bg-[#EAF6E5] rounded-2xl p-3 border border-[#D8EACF]">
-                <p className="text-xs text-[#1B3815] font-bold">
-                  {t('rpeInstruction')}
-                </p>
+            {/* Editorial Header */}
+            <div className="text-center pb-4">
+              <div className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-[#EBEBE6] border border-[#D6D6D2] text-[#C42126] mb-2.5">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] uppercase tracking-tight leading-none">
+                {t('workoutFinishedTitle')}
+              </h2>
+              {workoutTitle && (
+                <p className="text-xs font-semibold text-[#5C5C5C] mt-1">{workoutTitle}</p>
+              )}
+            </div>
+
+            {/* Flush 2-Column 1px Hairline Telemetry Strip */}
+            <div className="grid grid-cols-2 divide-x divide-[#D6D6D2] py-3.5 border-y border-[#D6D6D2] text-center mb-4">
+              <div className="pr-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                  {t('workoutFinishedTime').replace(':', '')}
+                </span>
+                <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#333333] font-telemetry">
+                  {Math.max(1, Math.round(durationSeconds / 60))} {t('minutes')}
+                </span>
+              </div>
+              <div className="pl-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                  {t('workoutFinishedReps').replace(':', '')}
+                </span>
+                <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#2E7D32] font-telemetry">
+                  {totalReps} {t('reps')}
+                </span>
               </div>
             </div>
 
+            <p className="text-xs text-[#5C5C5C] text-center mb-4 leading-relaxed">
+              {cleanInstruction}
+            </p>
+
             {/* Error Message with Safe Escape Option */}
             {errorMsg && (
-              <div className="mb-5 space-y-3">
-                <div className="bg-[#FEE2E2] border border-[#DC2626] rounded-2xl p-4 flex items-start space-x-3 text-[#991B1B] text-xs font-bold">
-                  <AlertTriangle className="w-5 h-5 shrink-0 text-[#DC2626] mt-0.5" />
-                  <div>
-                    <span className="block font-black">Thông Báo Hệ Thống:</span>
-                    <span className="font-medium leading-relaxed">{errorMsg}</span>
-                  </div>
+              <div className="mb-4 space-y-2.5">
+                <div className="bg-[#FDE8E9] border border-[#C42126]/30 rounded-lg p-3 flex items-start gap-2.5 text-[#C42126] text-xs font-semibold">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
                 </div>
                 <button
                   onClick={onFinishFlow}
-                  className="w-full py-3 px-4 bg-[#F5FAF2] hover:bg-[#EAF6E5] text-[#1B3815] font-black text-xs uppercase rounded-xl border border-[#D8EACF] transition-colors cursor-pointer flex items-center justify-center space-x-2"
+                  className="w-full py-2.5 px-4 bg-[#EBEBE6] hover:bg-[#D6D6D2] text-[#333333] font-semibold text-xs uppercase rounded-lg border border-[#D6D6D2] transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
                   <ArrowRight className="w-4 h-4" />
                   <span>{t('backHomeBtn')}</span>
@@ -143,116 +182,157 @@ export function GiantRpeModal({
               </div>
             )}
 
-            {/* 3 Giant Emotion / RPE Buttons (Flat Colors, No Gradient) */}
-            <div className="space-y-3.5">
-              <GiantButton
-                variant="success"
-                size="giant"
-                icon="🟢"
-                subtitle={t('rpeEasySub')}
-                badge={t('progressionTag')}
-                isLoading={isSubmitting && selectedRpe === 1}
+            {/* 3 Harmonized RPE Selection Cards:
+                1. TOO EASY: Calm Graphite/Stone (#EBEBE6 / #333333)
+                2. OPTIMAL (Sweet Spot): Forest Green (#2E7D32)
+                3. TOO HARD (Redline): Crimson Red (#C42126) */}
+            <div className="space-y-2.5">
+              {/* RPE 1: TOO EASY — Neutral Stone surface with Graphite border */}
+              <button
+                type="button"
                 disabled={isSubmitting}
                 onClick={() => handleSelectRpe(1)}
+                className="w-full p-4 rounded-xl bg-[#EBEBE6] hover:bg-[#E2E2DC] border border-[#D6D6D2] hover:border-[#333333] text-[#333333] flex items-center justify-between gap-3 text-left transition-all cursor-pointer disabled:opacity-50"
               >
-                {t('rpeEasyTitle')}
-              </GiantButton>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#F5F5F0] border border-[#D6D6D2] flex items-center justify-center shrink-0 mt-0.5 text-[#333333]">
+                    <Wind className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm uppercase tracking-wide text-[#333333]">
+                      {t('rpeEasyTitle')}
+                    </div>
+                    <div className="text-xs text-[#5C5C5C] mt-0.5 leading-snug">
+                      {t('rpeEasySub')}
+                    </div>
+                  </div>
+                </div>
+                <span className="font-telemetry text-xs font-bold text-[#333333] bg-[#F5F5F0] border border-[#D6D6D2] px-2.5 py-1 rounded-md shrink-0">
+                  {isSubmitting && selectedRpe === 1 ? '...' : t('progressionTag')}
+                </span>
+              </button>
 
-              <GiantButton
-                variant="warning"
-                size="giant"
-                icon="🟡"
-                subtitle={t('rpeOptimalSub')}
-                badge={t('overloadTag')}
-                isLoading={isSubmitting && selectedRpe === 2}
+              {/* RPE 2: OPTIMAL — Forest Green (#2E7D32) Sweet-Spot Target */}
+              <button
+                type="button"
                 disabled={isSubmitting}
                 onClick={() => handleSelectRpe(2)}
+                className="w-full p-4 rounded-xl bg-[#2E7D32] hover:bg-[#256628] border border-[#2E7D32] text-[#FFFFFF] flex items-center justify-between gap-3 text-left transition-all cursor-pointer disabled:opacity-50"
               >
-                {t('rpeOptimalTitle')}
-              </GiantButton>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0 mt-0.5 text-[#FFFFFF]">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm uppercase tracking-wide text-[#FFFFFF]">
+                      {t('rpeOptimalTitle')}
+                    </div>
+                    <div className="text-xs text-white/85 mt-0.5 leading-snug">
+                      {t('rpeOptimalSub')}
+                    </div>
+                  </div>
+                </div>
+                <span className="font-telemetry text-xs font-bold text-[#FFFFFF] bg-white/15 px-2.5 py-1 rounded-md shrink-0">
+                  {isSubmitting && selectedRpe === 2 ? '...' : t('overloadTag')}
+                </span>
+              </button>
 
-              <GiantButton
-                variant="danger"
-                size="giant"
-                icon="🔴"
-                subtitle={t('rpeHardSub')}
-                badge={t('recoveryTag')}
-                isLoading={isSubmitting && selectedRpe === 3}
+              {/* RPE 3: TOO HARD — Crimson Red (#C42126) High Exertion */}
+              <button
+                type="button"
                 disabled={isSubmitting}
                 onClick={() => handleSelectRpe(3)}
+                className="w-full p-4 rounded-xl bg-[#C42126] hover:bg-[#A3191E] border border-[#C42126] text-[#FFFFFF] flex items-center justify-between gap-3 text-left transition-all cursor-pointer disabled:opacity-50"
               >
-                {t('rpeHardTitle')}
-              </GiantButton>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0 mt-0.5 text-[#FFFFFF]">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm uppercase tracking-wide text-[#FFFFFF]">
+                      {t('rpeHardTitle')}
+                    </div>
+                    <div className="text-xs text-white/85 mt-0.5 leading-snug">
+                      {t('rpeHardSub')}
+                    </div>
+                  </div>
+                </div>
+                <span className="font-telemetry text-xs font-bold text-[#FFFFFF] bg-white/15 px-2.5 py-1 rounded-md shrink-0">
+                  {isSubmitting && selectedRpe === 3 ? '...' : t('recoveryTag')}
+                </span>
+              </button>
             </div>
 
             {/* Bottom Escape Option */}
             <div className="text-center pt-4">
               <button
                 onClick={onFinishFlow}
-                className="text-xs font-bold text-slate-400 hover:text-[#1B3815] transition-colors cursor-pointer"
+                className="text-xs font-semibold text-[#5C5C5C] hover:text-[#C42126] transition-colors cursor-pointer"
               >
                 {t('backHomeBtn')} ➔
               </button>
             </div>
           </div>
         ) : (
-          /* Reward & Gamification Celebration Summary */
-          <div className="text-center py-4 space-y-5">
-            <div className="w-16 h-16 rounded-full bg-[#EAF6E5] text-[#52B72B] mx-auto flex items-center justify-center shadow-sm">
-              <Zap className="w-8 h-8 fill-[#52B72B]" />
+          /* Reward & Gamification Celebration Summary (Single-Layer Hairline Split) */
+          <div className="text-center py-2 space-y-5">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#EBEBE6] border border-[#D6D6D2] text-[#C42126] mx-auto">
+              <Zap className="w-6 h-6" />
             </div>
 
             <div>
-              <h3 className="text-2xl sm:text-3xl font-black text-[#1B3815]">{t('workoutAwesomeJob')}</h3>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
-                {t('rpeLoggedSub')}
-              </p>
+              <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] uppercase">
+                {t('workoutAwesomeJob')}
+              </h3>
+              <p className="text-xs sm:text-sm text-[#5C5C5C] mt-1">{t('rpeLoggedSub')}</p>
             </div>
 
             {/* Anti-Cheat Notice if flagged */}
             {rewardData.isFlaggedCheat && (
-              <div className="bg-[#FEF3C7] border border-[#F59E0B] rounded-2xl p-3 text-xs text-[#92400E] font-bold text-left flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-[#D97706] mt-0.5" />
-                <span>{rewardData.cheatReason || 'Buổi tập ghi nhận với 0 XP do thời gian hoàn thành quá nhanh.'}</span>
+              <div className="bg-[#FDE8E9] border border-[#C42126]/30 rounded-lg p-3 text-xs text-[#C42126] font-semibold text-left flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  {rewardData.cheatReason ||
+                    'Buổi tập ghi nhận với 0 XP do thời gian hoàn thành quá nhanh.'}
+                </span>
               </div>
             )}
 
-            {/* Reward Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#EAF6E5] border border-[#D8EACF] rounded-2xl p-4 flex flex-col items-center justify-center">
-                <span className="text-xs text-[#52B72B] font-black uppercase tracking-wider mb-1">
+            {/* Flush 2-Column Hairline Split for XP & FitCoins */}
+            <div className="grid grid-cols-2 divide-x divide-[#D6D6D2] py-4 border-y border-[#D6D6D2]">
+              <div className="pr-4 flex flex-col items-center justify-center">
+                <span className="text-xs text-[#5C5C5C] font-bold uppercase tracking-wider mb-1">
                   {t('xpEarned')}
                 </span>
-                <span className="text-2xl font-black text-[#1B3815]">
+                <span className="font-display text-3xl font-extrabold text-[#2E7D32] font-telemetry">
                   +{rewardData.earnedXp || 0} XP
                 </span>
               </div>
 
-              <div className="bg-[#FEF3C7] border border-[#F59E0B] rounded-2xl p-4 flex flex-col items-center justify-center">
-                <span className="text-xs text-[#D97706] font-black uppercase tracking-wider mb-1 flex items-center space-x-1">
-                  <Coins className="w-3.5 h-3.5 mr-1" /> {t('fitcoinsEarned')}
+              <div className="pl-4 flex flex-col items-center justify-center">
+                <span className="text-xs text-[#5C5C5C] font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Coins className="w-3.5 h-3.5 text-[#C42126]" />
+                  <span>{t('fitcoinsEarned')}</span>
                 </span>
-                <span className="text-2xl font-black text-[#D97706]">
+                <span className="font-display text-3xl font-extrabold text-[#C42126] font-telemetry">
                   +{rewardData.earnedCoins || 0}
                 </span>
               </div>
             </div>
 
             {rewardData.hasLeveledUp && (
-              <div className="bg-[#FEF3C7] border-2 border-[#F59E0B] rounded-2xl p-4">
-                <span className="text-[#D97706] font-black text-lg block">
+              <div className="bg-[#EBEBE6] border border-[#C42126] rounded-lg p-4">
+                <span className="text-[#C42126] font-bold text-base block">
                   {t('levelUpCongrats')} {rewardData.newLevel}!
                 </span>
-                <span className="text-xs text-slate-700">
-                  {t('levelUpSub')}
-                </span>
+                <span className="text-xs text-[#5C5C5C]">{t('levelUpSub')}</span>
               </div>
             )}
 
             <GiantButton
-              variant="dark"
+              variant="primary"
               size="large"
-              icon={<ArrowRight className="w-6 h-6" />}
+              icon={<ArrowRight className="w-5 h-5" />}
               onClick={onFinishFlow}
             >
               {t('backHomeBtn')}

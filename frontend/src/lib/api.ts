@@ -1,5 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// Deduplicate concurrent identical GET requests in-flight
+const inFlightGetRequests = new Map<string, Promise<any>>();
+
+export interface AiChatHistoryItem {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export class ApiClient {
   private static getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -10,7 +18,14 @@ export class ApiClient {
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
+    const method = (options.method || 'GET').toUpperCase();
     const token = this.getToken();
+    const dedupeKey = method === 'GET' ? `${token || 'anon'}:${endpoint}` : null;
+
+    if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
+      return inFlightGetRequests.get(dedupeKey) as Promise<T>;
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -20,19 +35,32 @@ export class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    const executeFetch = (async () => {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
 
-    const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const errorMsg = data.message || `Lỗi yêu cầu (${res.status})`;
-      throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+      if (!res.ok) {
+        const errorMsg = data.message || `Lỗi yêu cầu (${res.status})`;
+        throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+      }
+
+      return data as T;
+    })();
+
+    if (dedupeKey) {
+      inFlightGetRequests.set(dedupeKey, executeFetch);
+      executeFetch
+        .finally(() => {
+          inFlightGetRequests.delete(dedupeKey);
+        })
+        .catch(() => {});
     }
 
-    return data as T;
+    return executeFetch;
   }
 
   // Auth
@@ -62,25 +90,41 @@ export class ApiClient {
     });
   }
 
-  static async updateProfile(body: any) {
-    return this.request<any>('/users/profile', {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-  }
-
-  // AI Recommendation
+  // AI Recommendation & Hybrid LLM Coach
   static async getDailyRecommendation() {
     return this.request<any>('/recommendations/daily');
   }
 
-  // Exercises
-  static async getExercises(params?: { muscle?: string; injuries?: string; search?: string }) {
-    const query = new URLSearchParams();
-    if (params?.muscle) query.set('muscle', params.muscle);
-    if (params?.injuries) query.set('injuries', params.injuries);
-    if (params?.search) query.set('search', params.search);
-    return this.request<any[]>(`/exercises?${query.toString()}`);
+  static async getAuxiliaryRecommendation() {
+    return this.request<any>('/recommendations/auxiliary');
+  }
+
+  static async configureGeminiKey(apiKey?: string) {
+    return this.request<{
+      valid: boolean;
+      engine: 'GEMINI_2_5_FLASH' | 'HYBRID_EXPERT_ENGINE';
+      model: string | null;
+      message: string;
+    }>('/recommendations/config-key', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey }),
+    });
+  }
+
+  static async sendAiChatMessage(body: {
+    message: string;
+    history?: AiChatHistoryItem[];
+    language?: 'vi' | 'en';
+    clientApiKey?: string;
+  }) {
+    return this.request<{
+      reply: string;
+      engine: 'GEMINI_2_5_FLASH' | 'HYBRID_EXPERT_ENGINE';
+      model?: string;
+    }>('/recommendations/chat', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 
   // Workouts

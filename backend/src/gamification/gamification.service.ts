@@ -107,11 +107,21 @@ export class GamificationService {
     };
   }
 
+  private cachedShopItems: any[] | null = null;
+  private cachedShopItemsAt = 0;
+
   // Shop & Inventory methods
   async getShopItems() {
-    return this.prisma.shopItem.findMany({
+    const now = Date.now();
+    if (this.cachedShopItems && now - this.cachedShopItemsAt < 300000) {
+      return this.cachedShopItems;
+    }
+    const items = await this.prisma.shopItem.findMany({
       orderBy: { priceCoins: 'asc' },
     });
+    this.cachedShopItems = items;
+    this.cachedShopItemsAt = now;
+    return items;
   }
 
   async buyShopItem(userId: string, itemId: string) {
@@ -193,12 +203,14 @@ export class GamificationService {
 
       let streakUpdate = user.currentStreak;
       let freezeUpdate = user.streakFreezeCount;
+      let lastActiveUpdate = user.lastActiveDate;
 
       // If user did not work out yesterday and has active streak
       if (user.currentStreak > 0 && lastActive !== yesterday && lastActive !== new Date().toISOString().split('T')[0]) {
         if (user.streakFreezeCount > 0) {
-          // Consume 1 streak freeze to protect streak
+          // Consume 1 streak freeze to protect streak and mark yesterday as shielded
           freezeUpdate -= 1;
+          lastActiveUpdate = new Date(Date.now() - 86400000);
           this.logger.log(`User ${user.email} streak protected by Streak Freeze!`);
         } else {
           // Reset streak to 0
@@ -214,9 +226,25 @@ export class GamificationService {
           todayCoinsEarned: 0,
           currentStreak: streakUpdate,
           streakFreezeCount: freezeUpdate,
+          lastActiveDate: lastActiveUpdate,
           lastDailyReset: new Date(),
         },
       });
+    }
+
+    // Check and reset inactive Buddy Pairs
+    const activePairs = await this.prisma.buddyPair.findMany({
+      where: { status: 'ACTIVE', sharedStreak: { gt: 0 } },
+    });
+
+    for (const pair of activePairs) {
+      if (pair.lastSyncedDate !== yesterday && pair.lastSyncedDate !== new Date().toISOString().split('T')[0]) {
+        await this.prisma.buddyPair.update({
+          where: { id: pair.id },
+          data: { sharedStreak: 0 },
+        });
+        this.logger.log(`Buddy Pair ${pair.id} shared streak reset to 0 due to inactivity yesterday.`);
+      }
     }
 
     this.logger.log(`Daily reset complete for ${users.length} users.`);
