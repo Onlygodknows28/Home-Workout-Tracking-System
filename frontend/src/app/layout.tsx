@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans, Barlow_Condensed } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
 import { LanguageProvider } from '../context/LanguageContext';
@@ -10,16 +10,25 @@ import { MobileNav } from '../components/layout/MobileNav';
 import { MiniWorkoutBar } from '../components/workout/MiniWorkoutBar';
 import { AiCoachChatbot } from '../components/workout/AiCoachChatbot';
 
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ['latin', 'vietnamese'],
-  weight: ['400', '500', '600', '700', '800'],
+const plusJakarta = localFont({
+  src: [
+    { path: '../fonts/PlusJakartaSans-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../fonts/PlusJakartaSans-Medium.ttf', weight: '500', style: 'normal' },
+    { path: '../fonts/PlusJakartaSans-SemiBold.ttf', weight: '600', style: 'normal' },
+    { path: '../fonts/PlusJakartaSans-Bold.ttf', weight: '700', style: 'normal' },
+    { path: '../fonts/PlusJakartaSans-ExtraBold.ttf', weight: '800', style: 'normal' },
+  ],
   variable: '--font-plus-jakarta',
   display: 'swap',
 });
 
-const barlowCondensed = Barlow_Condensed({
-  subsets: ['latin', 'vietnamese'],
-  weight: ['600', '700', '800', '900'],
+const barlowCondensed = localFont({
+  src: [
+    { path: '../fonts/BarlowCondensed-SemiBold.ttf', weight: '600', style: 'normal' },
+    { path: '../fonts/BarlowCondensed-Bold.ttf', weight: '700', style: 'normal' },
+    { path: '../fonts/BarlowCondensed-ExtraBold.ttf', weight: '800', style: 'normal' },
+    { path: '../fonts/BarlowCondensed-Black.ttf', weight: '900', style: 'normal' },
+  ],
   variable: '--font-barlow-condensed',
   display: 'swap',
 });
