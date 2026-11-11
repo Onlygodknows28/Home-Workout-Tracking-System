@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -14,6 +14,8 @@ import {
   LogOut,
   ShieldAlert,
   Edit3,
+  Check,
+  X,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -29,14 +31,32 @@ const INITIAL_HISTORY_LIMIT = 4;
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, isAuthReady, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, isAuthReady, logout, updateUserProfile } = useAuth();
   const { t, language } = useLanguage();
   const { getCache, setCache, isFresh, isCacheHydrated } = useDataCache();
 
   const [history, setHistory] = useState<any[]>(() => getCache(CACHE_KEYS.WORKOUT_HISTORY) || []);
   const [isDataLoading, setIsDataLoading] = useState(() => !getCache(CACHE_KEYS.WORKOUT_HISTORY));
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const [leftCardRef, leftCardHeight] = useDesktopHeightSync([user, isDataLoading]);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [leftCardRef, leftCardHeight] = useDesktopHeightSync([
+    user,
+    isDataLoading,
+    isEditingName,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady) return;
@@ -81,6 +101,49 @@ export default function ProfilePage() {
     router.push('/login');
   };
 
+  const handleStartEditName = () => {
+    setNameInput(user?.name || '');
+    setNameError('');
+    setNameSuccess('');
+    setIsEditingName(true);
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setNameError('');
+  };
+
+  const handleSaveName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = nameInput.trim();
+    if (trimmed.length < 2 || trimmed.length > 60) {
+      setNameError(t('nameValidationLength'));
+      return;
+    }
+
+    if (trimmed === (user?.name || '').trim()) {
+      setIsEditingName(false);
+      setNameError('');
+      return;
+    }
+
+    setIsSavingName(true);
+    setNameError('');
+    try {
+      await updateUserProfile({ name: trimmed });
+      setIsEditingName(false);
+      setNameSuccess(t('nameUpdatedSuccess'));
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = setTimeout(() => setNameSuccess(''), 3000);
+    } catch (err: any) {
+      setNameError(err?.message || t('nameValidationLength'));
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   if (isLoading || isDataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-center">
@@ -111,20 +174,77 @@ export default function ProfilePage() {
             className="w-16 h-16 rounded-full border border-[#D6D6D2] object-cover bg-[#EBEBE6]"
           />
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-4xl font-extrabold text-[#333333] leading-none">
-                {formatPersonName(user?.name, language)}
-              </h1>
-              <span className="font-telemetry text-xs font-bold text-[#C42126]">
-                LV.{user?.level}
-              </span>
-            </div>
+            {isEditingName ? (
+              <form onSubmit={handleSaveName} className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => {
+                      setNameInput(e.target.value);
+                      if (nameError) setNameError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') handleCancelEditName();
+                    }}
+                    maxLength={60}
+                    autoFocus
+                    disabled={isSavingName}
+                    placeholder={t('editNamePlaceholder')}
+                    aria-label={t('editNamePlaceholder')}
+                    className="px-3 py-1.5 rounded-lg bg-[#FFFFFF] border border-[#D6D6D2] focus:border-[#C42126] focus:outline-none text-base font-bold text-[#333333] min-w-[200px] sm:min-w-[240px]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSavingName}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#C42126] hover:bg-[#a61b1f] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isSavingName ? t('savingNameBtn') : t('saveNameBtn')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEditName}
+                    disabled={isSavingName}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D6D6D2] bg-[#F5F5F0] hover:bg-[#EBEBE6] text-[#5C5C5C] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>{t('cancelNameBtn')}</span>
+                  </button>
+                </div>
+                {nameError && (
+                  <p className="text-xs font-semibold text-[#C42126]">{nameError}</p>
+                )}
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-display text-4xl font-extrabold text-[#333333] leading-none">
+                  {formatPersonName(user?.name, language)}
+                </h1>
+                <span className="font-telemetry text-xs font-bold text-[#C42126]">
+                  LV.{user?.level}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleStartEditName}
+                  title={t('editNameBtn')}
+                  aria-label={t('editNameBtn')}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#D6D6D2] bg-[#F5F5F0] hover:border-[#C42126] hover:text-[#C42126] text-[#5C5C5C] text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>{t('editNameBtn')}</span>
+                </button>
+              </div>
+            )}
             <p className="text-xs text-[#5C5C5C] mt-1">
               {user?.email} •{' '}
               <strong className="text-[#333333]">
                 {getFitnessLevelLabel(profile?.fitnessLevel || 'BEGINNER', language)} {t('athlete')}
               </strong>
             </p>
+            {nameSuccess && (
+              <p className="text-xs font-semibold text-[#2E7D32] mt-1">{nameSuccess}</p>
+            )}
           </div>
         </div>
 

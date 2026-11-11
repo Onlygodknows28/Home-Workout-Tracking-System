@@ -1,4 +1,16 @@
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum PrimaryGoal {
@@ -51,9 +63,13 @@ export class OnboardingDto {
 }
 
 export class UpdateProfileDto {
-  @ApiPropertyOptional({ example: 'Alex Nguyen' })
+  @ApiPropertyOptional({ example: 'Alex Nguyen', minLength: 2, maxLength: 60 })
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty({ message: 'Name cannot be empty' })
+  @MinLength(2, { message: 'Name must be at least 2 characters' })
+  @MaxLength(60, { message: 'Name must be at most 60 characters' })
   name?: string;
 
   @ApiPropertyOptional({ example: 'https://images.unsplash.com/...' })

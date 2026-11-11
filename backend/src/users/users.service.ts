@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardingDto, UpdateProfileDto } from './dto/onboarding.dto';
 
@@ -95,11 +95,19 @@ export class UsersService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    if (dto.name || dto.avatar) {
+    let trimmedName: string | undefined;
+    if (dto.name !== undefined) {
+      trimmedName = dto.name.trim();
+      if (trimmedName.length < 2 || trimmedName.length > 60) {
+        throw new BadRequestException('Name must be between 2 and 60 characters');
+      }
+    }
+
+    if (trimmedName !== undefined || dto.avatar) {
       await this.prisma.user.update({
         where: { id: userId },
         data: {
-          ...(dto.name ? { name: dto.name } : {}),
+          ...(trimmedName !== undefined ? { name: trimmedName } : {}),
           ...(dto.avatar ? { avatar: dto.avatar } : {}),
         },
       });

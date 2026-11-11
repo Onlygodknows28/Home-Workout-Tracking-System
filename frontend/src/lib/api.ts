@@ -90,6 +90,21 @@ export class ApiClient {
     });
   }
 
+  static async updateProfile(body: {
+    name?: string;
+    avatar?: string;
+    height?: number;
+    weight?: number;
+    primaryGoal?: string;
+    injuries?: string[];
+    availableEquipment?: string[];
+  }) {
+    return this.request<any>('/users/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
   // AI Recommendation & Hybrid LLM Coach
   static async getDailyRecommendation() {
     return this.request<any>('/recommendations/daily');

@@ -33,6 +33,16 @@ export interface UserData {
   profile?: UserProfile | null;
 }
 
+export interface UpdateProfilePayload {
+  name?: string;
+  avatar?: string;
+  height?: number;
+  weight?: number;
+  primaryGoal?: string;
+  injuries?: string[];
+  availableEquipment?: string[];
+}
+
 interface AuthContextType {
   user: UserData | null;
   token: string | null;
@@ -43,6 +53,7 @@ interface AuthContextType {
   register: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  updateUserProfile: (payload: UpdateProfilePayload) => Promise<UserData>;
 }
 
 const USER_CACHE_KEY = 'fit_user_cache';
@@ -167,6 +178,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (payload: UpdateProfilePayload): Promise<UserData> => {
+    const updatedUser = await ApiClient.updateProfile(payload);
+    applyUserIfChanged(updatedUser);
+    persistUserCache(updatedUser);
+    return updatedUser;
+  };
+
   const contextValue = React.useMemo(
     () => ({
       user,
@@ -178,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       refreshUser,
+      updateUserProfile,
     }),
     [user, token, isLoading, isAuthReady],
   );
