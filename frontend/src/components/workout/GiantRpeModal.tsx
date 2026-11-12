@@ -23,6 +23,7 @@ interface GiantRpeModalProps {
   durationSeconds: number;
   workoutTitle: string;
   onSubmitRpe: (rpeScore: number) => Promise<any>;
+  onDismiss: () => void;
   onFinishFlow: () => void;
 }
 
@@ -32,6 +33,7 @@ export function GiantRpeModal({
   durationSeconds,
   workoutTitle,
   onSubmitRpe,
+  onDismiss,
   onFinishFlow,
 }: GiantRpeModalProps) {
   const { t } = useLanguage();
@@ -50,23 +52,32 @@ export function GiantRpeModal({
     }
   }, [isOpen]);
 
-  // Allow escaping modal via ESC key
+  const handleRequestClose = React.useCallback(() => {
+    if (isSubmitting) return;
+    if (rewardData) {
+      onFinishFlow();
+    } else {
+      onDismiss();
+    }
+  }, [isSubmitting, rewardData, onFinishFlow, onDismiss]);
+
+  // Allow escaping modal via ESC key without discarding an unsubmitted workout
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onFinishFlow();
+        handleRequestClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onFinishFlow]);
+  }, [isOpen, handleRequestClose]);
 
   if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      onFinishFlow();
+      handleRequestClose();
     }
   };
 
@@ -118,8 +129,9 @@ export function GiantRpeModal({
       >
         {/* Always Accessible Close Button (X) */}
         <button
-          onClick={onFinishFlow}
-          className="absolute top-4 right-4 p-2 text-[#5C5C5C] hover:text-[#C42126] rounded-lg hover:bg-[#EBEBE6] transition-colors cursor-pointer z-10"
+          onClick={handleRequestClose}
+          disabled={isSubmitting}
+          className="absolute top-4 right-4 p-2 text-[#5C5C5C] hover:text-[#C42126] rounded-lg hover:bg-[#EBEBE6] transition-colors cursor-pointer z-10 disabled:opacity-50"
           aria-label="Close modal"
           title="Đóng / Close"
         >
@@ -173,11 +185,12 @@ export function GiantRpeModal({
                   <span>{errorMsg}</span>
                 </div>
                 <button
-                  onClick={onFinishFlow}
-                  className="w-full py-2.5 px-4 bg-[#EBEBE6] hover:bg-[#D6D6D2] text-[#333333] font-semibold text-xs uppercase rounded-lg border border-[#D6D6D2] transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  onClick={onDismiss}
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 bg-[#EBEBE6] hover:bg-[#D6D6D2] text-[#333333] font-semibold text-xs uppercase rounded-lg border border-[#D6D6D2] transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <ArrowRight className="w-4 h-4" />
-                  <span>{t('backHomeBtn')}</span>
+                  <span>{t('rateLaterBtn')}</span>
                 </button>
               </div>
             )}
@@ -263,13 +276,14 @@ export function GiantRpeModal({
               </button>
             </div>
 
-            {/* Bottom Escape Option */}
+            {/* Bottom Temporary Dismiss Option */}
             <div className="text-center pt-4">
               <button
-                onClick={onFinishFlow}
-                className="text-xs font-semibold text-[#5C5C5C] hover:text-[#C42126] transition-colors cursor-pointer"
+                onClick={onDismiss}
+                disabled={isSubmitting}
+                className="text-xs font-semibold text-[#5C5C5C] hover:text-[#C42126] transition-colors cursor-pointer disabled:opacity-50"
               >
-                {t('backHomeBtn')} ➔
+                {t('rateLaterBtn')} ➔
               </button>
             </div>
           </div>

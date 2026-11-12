@@ -21,6 +21,7 @@ import {
   Zap,
   Trophy,
   Shield,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function WorkoutPlayerPage() {
@@ -34,6 +35,8 @@ export default function WorkoutPlayerPage() {
     elapsedSeconds,
     isRestModalMinimized,
     minimizeRestModal,
+    dismissRpeModal,
+    reopenRpeModal,
     startWorkout,
     completeSet,
     skipExercise,
@@ -50,6 +53,7 @@ export default function WorkoutPlayerPage() {
 
   const [todayStatus, setTodayStatus] = useState<any>(() => getCache(CACHE_KEYS.TODAY_STATUS));
   const [isStartingAuxiliary, setIsStartingAuxiliary] = useState(false);
+  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
 
   const [isDataLoading, setIsDataLoading] = useState(
     () => !activeWorkout.isActive && !getCache(CACHE_KEYS.RECOMMENDATION),
@@ -462,8 +466,78 @@ export default function WorkoutPlayerPage() {
             </div>
           </div>
         </div>
+      ) : isCompleted ? (
+        /* 2A. WORKOUT FINISHED — PENDING RPE SUBMISSION */
+        <div className="max-w-xl mx-auto py-4">
+          <div className="bento-tile p-6 sm:p-8 text-center space-y-5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FDE8E9] border border-[#C42126]/30 text-[#C42126] text-xs font-bold uppercase tracking-wider">
+              <Zap className="w-3.5 h-3.5" />
+              <span>{t('pendingRpeBadge')}</span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#EBEBE6] border border-[#D6D6D2] text-[#C42126] mx-auto">
+                <Trophy className="w-6 h-6" />
+              </div>
+              <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-[#333333] uppercase leading-none">
+                {t('pendingRpeTitle')}
+              </h1>
+              <p className="text-xs font-semibold text-[#5C5C5C]">
+                {getWorkoutPlanTitle(currentPlan?.title, language) || 'Home Workout Routine'}
+              </p>
+              <p className="text-xs sm:text-sm text-[#5C5C5C] leading-relaxed max-w-md mx-auto">
+                {t('pendingRpeDesc')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-[#D6D6D2] py-3.5 border-y border-[#D6D6D2] text-center">
+              <div className="pr-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                  {t('workoutFinishedTime').replace(':', '')}
+                </span>
+                <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#333333] font-telemetry">
+                  {formatTime(activeWorkout.completedDurationSeconds ?? elapsedSeconds)}
+                </span>
+              </div>
+              <div className="pl-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] block">
+                  {t('workoutFinishedReps').replace(':', '')}
+                </span>
+                <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#2E7D32] font-telemetry">
+                  {totalCalculatedReps} {t('reps')}
+                </span>
+              </div>
+            </div>
+
+            <GiantButton
+              variant="primary"
+              size="large"
+              icon={<Zap className="w-5 h-5" />}
+              onClick={reopenRpeModal}
+            >
+              {t('reopenRpeBtn')}
+            </GiantButton>
+
+            <div className="flex items-center justify-between pt-2 border-t border-[#D6D6D2]">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="text-xs font-semibold text-[#5C5C5C] hover:text-[#333333] cursor-pointer"
+              >
+                {t('returnLaterBtn')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDiscard(true)}
+                className="text-xs font-semibold text-[#C42126] hover:underline cursor-pointer"
+              >
+                {t('discardWorkoutBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
-        /* 2. ACTIVE WORKOUT MODE (Single-Layer Surface + 1px Hairlines) */
+        /* 2B. ACTIVE WORKOUT MODE (Single-Layer Surface + 1px Hairlines) */
         <div className="space-y-6 max-w-2xl mx-auto">
           {/* Open-Canvas Top Status & Stopwatch Bar */}
           <div className="flex items-center justify-between pb-4 border-b border-[#D6D6D2]">
@@ -599,20 +673,62 @@ export default function WorkoutPlayerPage() {
 
       {/* Giant RPE Modal */}
       <GiantRpeModal
-        isOpen={isCompleted}
+        isOpen={isCompleted && !activeWorkout.isRpeModalDismissed}
         totalReps={totalCalculatedReps}
-        durationSeconds={elapsedSeconds}
+        durationSeconds={activeWorkout.completedDurationSeconds ?? elapsedSeconds}
         workoutTitle={getWorkoutPlanTitle(currentPlan?.title, language) || 'Home Workout Routine'}
         onSubmitRpe={handleSubmitWorkoutLog}
+        onDismiss={dismissRpeModal}
         onFinishFlow={async () => {
-          discardWorkout();
           const status = await ApiClient.getTodayStatus().catch(() => null);
           if (status) {
             setTodayStatus(status);
             setCache(CACHE_KEYS.TODAY_STATUS, status);
           }
+          discardWorkout();
         }}
       />
+
+      {/* Explicit Discard Confirmation for Pending RPE Workout */}
+      {isConfirmingDiscard && (
+        <div
+          onClick={() => setIsConfirmingDiscard(false)}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bento-tile p-6 text-center space-y-4"
+          >
+            <AlertTriangle className="w-8 h-8 text-[#C42126] mx-auto" />
+            <div className="space-y-1">
+              <h3 className="font-display text-2xl font-bold text-[#333333] uppercase">
+                {t('discardConfirmTitle')}
+              </h3>
+              <p className="text-xs text-[#5C5C5C] leading-relaxed">{t('discardConfirmDesc')}</p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmingDiscard(false);
+                  discardWorkout();
+                }}
+                className="flex-1 py-2.5 px-4 rounded-lg btn-cta-red font-semibold text-xs uppercase cursor-pointer"
+              >
+                {t('confirmDiscardBtn')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDiscard(false)}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-[#F5F5F0] border border-[#D6D6D2] text-[#333333] font-semibold text-xs uppercase cursor-pointer"
+              >
+                {t('cancelBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

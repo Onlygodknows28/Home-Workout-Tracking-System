@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useWorkout } from '../../context/WorkoutContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatTime } from '../../lib/utils';
-import { getExerciseName } from '../../lib/catalogTranslations';
+import { getExerciseName, getWorkoutPlanTitle } from '../../lib/catalogTranslations';
 import {
   ChevronRight,
   X,
@@ -26,6 +26,7 @@ export function MiniWorkoutBar() {
     remainingRestSeconds,
     isMiniBarVisibleOnPath,
     maximizeRestModal,
+    reopenRpeModal,
     completeRest,
     addRestSeconds,
     discardWorkout,
@@ -34,6 +35,7 @@ export function MiniWorkoutBar() {
   const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
 
   const isResting = activeWorkout.isResting;
+  const isCompleted = activeWorkout.isCompleted;
   const shouldShow = isMiniBarVisibleOnPath(pathname);
 
   if (!shouldShow) {
@@ -44,9 +46,16 @@ export function MiniWorkoutBar() {
   const exercises = rec?.exercises || [];
   const currentEx = exercises[activeWorkout.currentExerciseIndex];
   const exerciseName = currentEx ? getExerciseName(currentEx, language) : '...';
+  const dockTitle = isCompleted ? t('miniPendingRpeTitle') : t('miniPlayerTitle');
+  const dockHeading = isCompleted
+    ? getWorkoutPlanTitle(rec?.title, language) || exerciseName
+    : exerciseName;
+  const dockCtaLabel = isCompleted ? t('miniSelectRpeBtn') : t('resumeWorkoutBtn');
 
   const handleResume = () => {
-    if (isResting) {
+    if (isCompleted) {
+      reopenRpeModal();
+    } else if (isResting) {
       maximizeRestModal();
     }
     if (pathname !== '/workout') {
@@ -184,25 +193,33 @@ export function MiniWorkoutBar() {
           </div>
         </div>
       ) : (
-        /* Single-Layer Ivory & Crimson Active Workout Dock Bar */
+        /* Single-Layer Ivory & Crimson Active Workout / Pending RPE Dock Bar */
         <div
           onClick={handleResume}
           className="fixed bottom-[64px] left-3 right-3 md:bottom-5 md:right-5 md:left-auto md:w-[390px] z-40 hud-glass text-[#333333] p-3.5 cursor-pointer hover:border-[#C42126] transition-all select-none"
           role="button"
           tabIndex={0}
-          aria-label="Resume workout session"
+          aria-label={isCompleted ? 'Open RPE rating modal' : 'Resume workout session'}
         >
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#2E7D32]" />
-                <span className="text-[10px] font-bold tracking-widest text-[#5C5C5C] uppercase">
-                  {t('miniPlayerTitle')}
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isCompleted ? 'bg-[#C42126] animate-pulse' : 'bg-[#2E7D32]'
+                  }`}
+                />
+                <span
+                  className={`text-[10px] font-bold tracking-widest uppercase ${
+                    isCompleted ? 'text-[#C42126]' : 'text-[#5C5C5C]'
+                  }`}
+                >
+                  {dockTitle}
                 </span>
               </div>
-              <h4 className="font-bold text-sm text-[#333333] truncate mt-0.5">{exerciseName}</h4>
+              <h4 className="font-bold text-sm text-[#333333] truncate mt-0.5">{dockHeading}</h4>
               <div className="flex items-center gap-2 text-xs text-[#5C5C5C] mt-0.5">
-                {currentEx && (
+                {!isCompleted && currentEx && (
                   <>
                     <span className="font-semibold">
                       {t('setNumber')} {activeWorkout.currentSet}/{currentEx.sets}
@@ -225,7 +242,7 @@ export function MiniWorkoutBar() {
                 }}
                 className="px-3 py-1.5 rounded-lg btn-cta-red text-xs font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <span>{t('resumeWorkoutBtn')}</span>
+                <span>{dockCtaLabel}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
 

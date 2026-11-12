@@ -20,6 +20,10 @@ export interface ActiveWorkoutState {
   restTotalSeconds: number;
   startTime: string | null;
   isCompleted: boolean;
+  isRpeModalDismissed: boolean;
+  isRpeSubmitted: boolean;
+  completedAt: string | null;
+  completedDurationSeconds: number | null;
   completedSetsLog: { [exerciseId: string]: number };
 }
 
@@ -38,6 +42,8 @@ interface WorkoutContextType {
   addRestSeconds: (sec: number) => void;
   minimizeRestModal: () => void;
   maximizeRestModal: () => void;
+  dismissRpeModal: () => void;
+  reopenRpeModal: () => void;
   discardWorkout: () => void;
   submitWorkout: (rpeScore: number) => Promise<any>;
 }
@@ -58,8 +64,19 @@ const initialState: ActiveWorkoutState = {
   restTotalSeconds: 45,
   startTime: null,
   isCompleted: false,
+  isRpeModalDismissed: false,
+  isRpeSubmitted: false,
+  completedAt: null,
+  completedDurationSeconds: null,
   completedSetsLog: {},
 };
+
+function getElapsedSince(startTime: string | null, endTimeMs: number, fallbackSeconds: number): number {
+  if (!startTime) return Math.max(0, fallbackSeconds);
+  const startMs = new Date(startTime).getTime();
+  if (Number.isNaN(startMs)) return Math.max(0, fallbackSeconds);
+  return Math.max(0, Math.floor((endTimeMs - startMs) / 1000));
+}
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
@@ -76,16 +93,30 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [remainingRestSeconds, setRemainingRestSeconds] = useState<number>(0);
   const lastBeepedSecondRef = useRef<number | null>(null);
 
-  // Restore saved workout session on client mount after hydration
+  // Restore saved workout session (including completed workouts pending RPE submission) on client mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.isActive && !parsed?.isCompleted && parsed?.recommendation) {
-          setActiveWorkout(parsed);
+        if (parsed?.isActive && !parsed?.isRpeSubmitted && parsed?.recommendation) {
+          const completedAt = parsed.completedAt ?? null;
+          const completedDurationSeconds =
+            typeof parsed.completedDurationSeconds === 'number'
+              ? parsed.completedDurationSeconds
+              : parsed.isCompleted && completedAt
+                ? getElapsedSince(parsed.startTime ?? null, new Date(completedAt).getTime(), 0)
+                : null;
+          setActiveWorkout({
+            ...initialState,
+            ...parsed,
+            isRpeModalDismissed: Boolean(parsed.isRpeModalDismissed),
+            isRpeSubmitted: false,
+            completedAt,
+            completedDurationSeconds,
+          });
         } else {
-          // Clean up any stale or already-completed workout session
+          // Clean up any stale or already-submitted workout session
           localStorage.removeItem(STORAGE_KEY);
         }
       }
@@ -96,11 +127,11 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Synchronize state with localStorage after hydration
+  // Synchronize state with localStorage after hydration (persist until RPE is submitted or discarded)
   useEffect(() => {
     if (typeof window === 'undefined' || !hasHydratedRef.current) return;
     try {
-      if (activeWorkout.isActive && !activeWorkout.isCompleted) {
+      if (activeWorkout.isActive && !activeWorkout.isRpeSubmitted) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(activeWorkout));
       } else {
         localStorage.removeItem(STORAGE_KEY);
@@ -112,7 +143,15 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   // Master Timer loop: runs continuously even across page navigation
   useEffect(() => {
-    if (!activeWorkout.isActive || activeWorkout.isCompleted) {
+    if (!activeWorkout.isActive) {
+      return;
+    }
+
+    if (activeWorkout.isCompleted) {
+      if (typeof activeWorkout.completedDurationSeconds === 'number') {
+        elapsedSecondsRef.current = activeWorkout.completedDurationSeconds;
+        setElapsedSeconds(activeWorkout.completedDurationSeconds);
+      }
       return;
     }
 
@@ -166,6 +205,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   }, [
     activeWorkout.isActive,
     activeWorkout.isCompleted,
+    activeWorkout.completedDurationSeconds,
     activeWorkout.isResting,
     activeWorkout.isRestPaused,
     activeWorkout.restEndTime,
@@ -176,21 +216,12 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const startWorkout = useCallback((rec: any) => {
     const now = new Date().toISOString();
     lastBeepedSecondRef.current = null;
+    elapsedSecondsRef.current = 0;
     const newState: ActiveWorkoutState = {
+      ...initialState,
       isActive: true,
       recommendation: rec,
-      currentExerciseIndex: 0,
-      currentSet: 1,
-      isResting: false,
-      isRestModalMinimized: false,
-      isRestPaused: false,
-      restStartTime: null,
-      restEndTime: null,
-      restRemainingWhenPaused: null,
-      restTotalSeconds: 45,
       startTime: now,
-      isCompleted: false,
-      completedSetsLog: {},
     };
     setActiveWorkout(newState);
     setElapsedSeconds(0);
@@ -257,6 +288,10 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             completedSetsLog: newLog,
             isCompleted: true,
+            isRpeModalDismissed: false,
+            isRpeSubmitted: false,
+            completedAt: new Date(now).toISOString(),
+            completedDurationSeconds: getElapsedSince(prev.startTime, now, elapsedSecondsRef.current),
             isResting: false,
             isRestModalMinimized: false,
             isRestPaused: false,
@@ -290,10 +325,15 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           restRemainingWhenPaused: null,
         };
       } else {
+        const now = Date.now();
         playSoundCue('levelup');
         return {
           ...prev,
           isCompleted: true,
+          isRpeModalDismissed: false,
+          isRpeSubmitted: false,
+          completedAt: new Date(now).toISOString(),
+          completedDurationSeconds: getElapsedSince(prev.startTime, now, elapsedSecondsRef.current),
           isResting: false,
           isRestModalMinimized: false,
           isRestPaused: false,
@@ -423,8 +463,29 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const dismissRpeModal = useCallback(() => {
+    setActiveWorkout((prev) => {
+      if (!prev.isActive || !prev.isCompleted || prev.isRpeSubmitted) return prev;
+      return {
+        ...prev,
+        isRpeModalDismissed: true,
+      };
+    });
+  }, []);
+
+  const reopenRpeModal = useCallback(() => {
+    setActiveWorkout((prev) => {
+      if (!prev.isActive || !prev.isCompleted || prev.isRpeSubmitted) return prev;
+      return {
+        ...prev,
+        isRpeModalDismissed: false,
+      };
+    });
+  }, []);
+
   const discardWorkout = useCallback(() => {
     lastBeepedSecondRef.current = null;
+    elapsedSecondsRef.current = 0;
     setActiveWorkout(initialState);
     setElapsedSeconds(0);
     setRemainingRestSeconds(0);
@@ -441,11 +502,15 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     const rec = activeWorkout.recommendation;
     if (!rec) return null;
 
+    const effectiveCompletedAt = activeWorkout.completedAt || new Date().toISOString();
+    const effectiveDurationSeconds =
+      activeWorkout.completedDurationSeconds ?? elapsedSecondsRef.current;
+
     const submissionData = {
       workoutTitle: rec.title,
-      startedAt: activeWorkout.startTime || new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      durationSeconds: Math.max(elapsedSecondsRef.current, 60),
+      startedAt: activeWorkout.startTime || effectiveCompletedAt,
+      completedAt: effectiveCompletedAt,
+      durationSeconds: Math.max(effectiveDurationSeconds, 60),
       estimatedDurationMin: Number(rec.estimatedDurationMin || 15),
       totalReps: rec.exercises.reduce(
         (sum: number, ex: any) => sum + (activeWorkout.completedSetsLog[ex.exerciseId] || ex.sets) * ex.reps,
@@ -462,13 +527,26 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     };
 
     const res = await ApiClient.submitWorkout(submissionData);
-    discardWorkout();
+    // Clear persisted pending workout immediately so reloading cannot duplicate submission,
+    // while keeping isCompleted true until the user closes the reward celebration screen.
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // safe
+      }
+    }
+    setActiveWorkout((prev) =>
+      prev.isActive
+        ? { ...prev, isRpeSubmitted: true, isRpeModalDismissed: false }
+        : prev,
+    );
     invalidate(CACHE_KEYS.TODAY_STATUS);
     invalidate(CACHE_KEYS.RECOMMENDATION);
     invalidate(CACHE_KEYS.WORKOUT_HISTORY);
     await refreshUser();
     return res;
-  }, [activeWorkout, invalidate, refreshUser, discardWorkout]);
+  }, [activeWorkout, invalidate, refreshUser]);
 
   const isMiniBarVisibleOnPath = useCallback(
     (pathname: string) => {
@@ -477,13 +555,13 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         (pathname !== '/workout' || activeWorkout.isRestModalMinimized);
       return (
         activeWorkout.isActive &&
-        !activeWorkout.isCompleted &&
+        !activeWorkout.isRpeSubmitted &&
         (pathname !== '/workout' || isRestingMinimized)
       );
     },
     [
       activeWorkout.isActive,
-      activeWorkout.isCompleted,
+      activeWorkout.isRpeSubmitted,
       activeWorkout.isResting,
       activeWorkout.isRestModalMinimized,
     ],
@@ -505,6 +583,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       addRestSeconds,
       minimizeRestModal,
       maximizeRestModal,
+      dismissRpeModal,
+      reopenRpeModal,
       discardWorkout,
       submitWorkout,
     }),
@@ -521,6 +601,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       addRestSeconds,
       minimizeRestModal,
       maximizeRestModal,
+      dismissRpeModal,
+      reopenRpeModal,
       discardWorkout,
       submitWorkout,
     ],
