@@ -22,9 +22,10 @@ model User {
   lastActiveDate    DateTime?
   streakFreezeCount Int               @default(1)
   todayXpEarned     Int               @default(0)
-  todayCoinsEarned  Int               @default(0)
-  lastDailyReset    DateTime?
-  createdAt         DateTime          @default(now())
+  todayCoinsEarned           Int               @default(0)
+  lastDailyReset             DateTime?
+  starterNotificationsSeeded Boolean           @default(false)
+  createdAt                  DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
   profile           Profile?

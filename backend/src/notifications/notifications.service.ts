@@ -39,11 +39,23 @@ export class NotificationsService {
       take: 50,
     });
 
-    // If user has zero notifications, seed initial welcome notifications
+    // Seed initial welcome notifications at most once per user
     if (notifications.length === 0) {
-      await this.seedStarterNotifications(userId);
-      return this.getUserNotifications(userId);
+      const seeded = await this.seedStarterNotifications(userId);
+      if (seeded) {
+        return this.getUserNotifications(userId);
+      }
+      return {
+        notifications: [],
+        unreadCount: 0,
+      };
     }
+
+    // Backfill flag for existing users who already have notifications
+    await this.prisma.user.updateMany({
+      where: { id: userId, starterNotificationsSeeded: false },
+      data: { starterNotificationsSeeded: true },
+    });
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -86,24 +98,39 @@ export class NotificationsService {
       throw new NotFoundException('Thông báo không tồn tại.');
     }
 
-    await this.prisma.notification.delete({
-      where: { id: notificationId },
-    });
+    await this.prisma.$transaction([
+      this.prisma.notification.delete({
+        where: { id: notificationId },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { starterNotificationsSeeded: true },
+      }),
+    ]);
 
     return { success: true, id: notificationId };
   }
 
   async clearAll(userId: string) {
-    await this.prisma.notification.deleteMany({
-      where: { userId },
-    });
+    await this.prisma.$transaction([
+      this.prisma.notification.deleteMany({
+        where: { userId },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { starterNotificationsSeeded: true },
+      }),
+    ]);
 
     return { success: true, message: 'Đã xóa tất cả thông báo.' };
   }
 
-  private async seedStarterNotifications(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return;
+  async seedStarterNotifications(userId: string): Promise<boolean> {
+    const claimed = await this.prisma.user.updateMany({
+      where: { id: userId, starterNotificationsSeeded: false },
+      data: { starterNotificationsSeeded: true },
+    });
+    if (claimed.count === 0) return false;
 
     const starters: CreateNotificationDto[] = [
       {
@@ -126,16 +153,18 @@ export class NotificationsService {
       },
     ];
 
-    for (const item of starters) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: item.type,
-          title: item.title,
-          message: item.message,
-          link: item.link,
-        },
-      });
-    }
+    const baseTime = Date.now();
+    await this.prisma.notification.createMany({
+      data: starters.map((item, idx) => ({
+        userId,
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        link: item.link || null,
+        createdAt: new Date(baseTime + idx),
+      })),
+    });
+
+    return true;
   }
 }

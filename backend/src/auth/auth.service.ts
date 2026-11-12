@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import * as bcrypt from 'bcryptjs';
 
@@ -9,6 +10,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -30,6 +32,8 @@ export class AuthService {
         streakFreezeCount: 1, // Free starting streak freeze
       },
     });
+
+    await this.notificationsService.seedStarterNotifications(user.id);
 
     const token = this.generateToken(user.id, user.email);
     const { password, ...userWithoutPassword } = user;
