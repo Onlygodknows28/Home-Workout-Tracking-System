@@ -663,7 +663,8 @@ export default function HomePage() {
                           <span>{t('workoutDayDoneBadge')}</span>
                         </span>
                         <h2 className="text-xl sm:text-2xl font-bold text-[#333333] mt-1">
-                          {todayWorkout?.workoutTitle || (language === 'vi' ? 'Calisthenics Hằng Ngày' : 'Daily Calisthenics Routine')}
+                          {getWorkoutPlanTitle(todayWorkout?.workoutTitle, language) ||
+                            (language === 'vi' ? 'Calisthenics Hằng Ngày' : 'Daily Calisthenics Routine')}
                         </h2>
                       </div>
                       <span className="font-telemetry text-sm font-bold text-[#2E7D32]">

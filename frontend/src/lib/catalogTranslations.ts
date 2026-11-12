@@ -139,6 +139,14 @@ export function getWorkoutPlanTitle(title: string | undefined, language: Languag
   if (cleaned.includes('Vận Động Toàn Diện & Khớp Linh Hoạt')) {
     return translatePrefix(cleaned.replace('Vận Động Toàn Diện & Khớp Linh Hoạt', 'Full Mobility & Joint Health'));
   }
+  if (cleaned.includes('Đốt Cháy Cơ Lõi & Giãn Cơ Phục Hồi')) {
+    return cleaned
+      .replace('⚡ Bài Tập Bổ Trợ: ', '⚡ Auxiliary Finisher: ')
+      .replace('Đốt Cháy Cơ Lõi & Giãn Cơ Phục Hồi', 'Core Burnout & Recovery Stretch');
+  }
+  if (cleaned === 'Calisthenics Hằng Ngày') {
+    return 'Daily Calisthenics Routine';
+  }
   return cleaned;
 }
 

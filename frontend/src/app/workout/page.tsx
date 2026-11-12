@@ -245,7 +245,8 @@ export default function WorkoutPlayerPage() {
 
             <p className="text-xs text-[#5C5C5C]">
               <strong className="text-[#333333]">
-                {todayWorkout?.workoutTitle || 'Calisthenics Hằng Ngày'}
+                {getWorkoutPlanTitle(todayWorkout?.workoutTitle, language) ||
+                  (language === 'vi' ? 'Calisthenics Hằng Ngày' : 'Daily Calisthenics Routine')}
               </strong>{' '}
               —{' '}
               {todayRpe === 1
@@ -279,7 +280,7 @@ export default function WorkoutPlayerPage() {
                     variant="primary"
                     size="large"
                     icon={<Play className="w-5 h-5 fill-white" />}
-                    subtitle="3 bài tập cơ lõi • ~8-10 phút • Không áp lực khớp"
+                    subtitle={t('auxiliaryStartSub')}
                     onClick={handleStartAuxiliaryWorkout}
                   >
                     {isStartingAuxiliary ? t('auxiliaryLoadingBtn') : t('auxiliaryStartBtn')}
@@ -332,7 +333,7 @@ export default function WorkoutPlayerPage() {
                 >
                   {isStartingAuxiliary
                     ? t('auxiliaryLoadingBtn')
-                    : 'Tôi vẫn muốn tập thêm bài bổ trợ cơ lõi nhẹ nhàng'}
+                    : t('auxiliaryOptionalBtn')}
                 </button>
               </div>
             </div>
