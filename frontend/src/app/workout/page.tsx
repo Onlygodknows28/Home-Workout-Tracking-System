@@ -10,6 +10,7 @@ import { ApiClient } from '../../lib/api';
 import { GiantButton } from '../../components/ui/GiantButton';
 import { RestTimerOverlay } from '../../components/workout/RestTimerOverlay';
 import { GiantRpeModal } from '../../components/workout/GiantRpeModal';
+import { ExerciseMediaViewer } from '../../components/workout/ExerciseMediaViewer';
 import { formatTime } from '../../lib/utils';
 import { getExerciseName, getWorkoutPlanTitle, getAiExplanation } from '../../lib/catalogTranslations';
 import {
@@ -592,6 +593,13 @@ export default function WorkoutPlayerPage() {
                   </p>
                 )}
               </div>
+
+              {/* Form Guide Animated Demonstration */}
+              <ExerciseMediaViewer
+                mediaUrl={currentEx.videoUrl}
+                exerciseName={getExerciseName(currentEx, language)}
+                instructions={currentEx.instructions}
+              />
 
               {/* Flush 2-Column Hairline Split for Current Set & Target Reps (Zero nested boxes!) */}
               <div className="grid grid-cols-2 divide-x divide-[#D6D6D2] py-5 border-y border-[#D6D6D2] text-center">

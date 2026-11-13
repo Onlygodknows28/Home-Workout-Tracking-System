@@ -58,6 +58,8 @@ export const EXERCISES = [
     defaultReps: 15,
     defaultSets: 3,
     restSeconds: 30,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/wall-pushup.gif',
     instructions: 'Đứng cách tường 1 sải tay, đặt hai lòng bàn tay lên tường và gập khuỷu tay từ từ.',
   },
   {
@@ -75,6 +77,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/kneeling-push-up.gif',
     instructions: 'Chống hai gối xuống sàn, giữ thẳng lưng từ đầu đến gối, hạ ngực gần chạm đất rồi đẩy lên.',
   },
   {
@@ -92,6 +96,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/push-up.gif',
     instructions: 'Giữ thân người thẳng như tấm ván (Plank), hạ ngực cách sàn 2-3cm rồi đẩy mạnh lên.',
   },
   {
@@ -109,6 +115,8 @@ export const EXERCISES = [
     defaultReps: 10,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/diamond-pushup.gif',
     instructions: 'Chụm hai ngón cái và hai ngón trỏ tạo hình thoi/kim cương, hạ ngực chạm đỉnh bàn tay.',
   },
   {
@@ -126,6 +134,8 @@ export const EXERCISES = [
     defaultReps: 10,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/decline-push-up.gif',
     instructions: 'Đặt hai mũi chân lên ghế, hai tay chống trên sàn rộng bằng vai và hạ người xuống.',
   },
 
@@ -145,6 +155,8 @@ export const EXERCISES = [
     defaultReps: 15,
     defaultSets: 3,
     restSeconds: 30,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/quads/split-squats.gif',
     instructions: 'Đứng trước ghế, hạ hông chạm nhẹ mặt ghế rồi đứng thẳng dậy gồng cơ đùi.',
   },
   {
@@ -162,6 +174,8 @@ export const EXERCISES = [
     defaultReps: 15,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/bodyweight-drop-jump-squat.gif',
     instructions: 'Chân rộng bằng vai, mũi chân xoay nhẹ 15 độ, đẩy hông ra sau và hạ đùi song song mặt sàn.',
   },
   {
@@ -179,6 +193,8 @@ export const EXERCISES = [
     defaultReps: 10,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/quads/split-squats.gif',
     instructions: 'Gác một mu bàn chân lên ghế phía sau, hạ gối trước vuông góc 90 độ rồi đạp lên.',
   },
   {
@@ -196,6 +212,8 @@ export const EXERCISES = [
     defaultReps: 15,
     defaultSets: 3,
     restSeconds: 40,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/low-glute-bridge-on-floor.gif',
     instructions: 'Nằm ngửa, gập gối, siết mông đẩy hông lên cao cho đến khi thân người tạo thành đường thẳng.',
   },
   {
@@ -213,6 +231,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/single-leg-bridge-with-outstretched-leg.gif',
     instructions: 'Giơ thẳng một chân lên không trung, dùng chân còn lại đạp sàn đẩy hông lên cao.',
   },
   {
@@ -230,6 +250,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 50,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/bodyweight-drop-jump-squat.gif',
     instructions: 'Đeo balo trước ngực hoặc sau lưng, thực hiện squat kiểm soát nhịp nhàng.',
   },
 
@@ -249,6 +271,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/bodyweight-standing-row-with-towel.gif',
     instructions: 'Quấn khăn quanh nắm cửa chắc chắn, ngả người ra sau và dùng lực lưng kéo ngực vào cửa.',
   },
   {
@@ -266,6 +290,8 @@ export const EXERCISES = [
     defaultReps: 8,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/inverted-row.gif',
     instructions: 'Nằm dưới gầm bàn ăn vững chãi, bám tay mép bàn và kéo ngực sát lên mặt bàn.',
   },
   {
@@ -283,6 +309,8 @@ export const EXERCISES = [
     defaultReps: 10,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/bodyweight-standing-row.gif',
     instructions: 'Bám một tay vào khung cửa, đặt mũi chân sát chân tường và kéo cơ thể về phía trước.',
   },
 
@@ -302,6 +330,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/triceps/bench-dip-knees-bent.gif',
     instructions: 'Chống hai tay vào mép ghế phía sau lưng, gập khuỷu tay 90 độ hạ người rồi đẩy thẳng tay lên.',
   },
   {
@@ -319,6 +349,8 @@ export const EXERCISES = [
     defaultReps: 15,
     defaultSets: 3,
     restSeconds: 30,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/shoulders/dumbbell-lateral-raise.gif',
     instructions: 'Cầm hai chai nước ngang hông, nâng ngang hai tay lên song song mặt sàn rồi hạ xuống có kiểm soát.',
   },
   {
@@ -336,6 +368,8 @@ export const EXERCISES = [
     defaultReps: 8,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/pike-push-up.gif',
     instructions: 'Nâng cao mông tạo hình chữ V ngược, hạ đỉnh đầu về phía trước sàn rồi đẩy mạnh lên.',
   },
 
@@ -355,6 +389,8 @@ export const EXERCISES = [
     defaultReps: 45,
     defaultSets: 3,
     restSeconds: 40,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/weighted-front-plank.gif',
     instructions: 'Tựa cẳng tay lên sàn, siết chặt cơ bụng và cơ mông, giữ người thẳng tắp.',
   },
   {
@@ -372,6 +408,8 @@ export const EXERCISES = [
     defaultReps: 30,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/front-plank-with-twist.gif',
     instructions: 'Nằm ngửa, ép chặt lưng dưới xuống sàn, nâng vai và hai chân lên tạo hình con thuyền.',
   },
   {
@@ -389,6 +427,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 30,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/dead-bug.gif',
     instructions: 'Nằm ngửa, từ từ hạ tay phải và chân trái xuống gần sàn trong khi lưng dán chặt vào đất.',
   },
   {
@@ -406,6 +446,8 @@ export const EXERCISES = [
     defaultReps: 12,
     defaultSets: 3,
     restSeconds: 30,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/bridge-mountain-climber-cross-body.gif',
     instructions: 'Quỳ 4 điểm trên thảm, duỗi thẳng tay phải về trước và chân trái ra sau song song sàn.',
   },
 
@@ -425,6 +467,8 @@ export const EXERCISES = [
     defaultReps: 20,
     defaultSets: 3,
     restSeconds: 45,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/cardio/mountain-climber.gif',
     instructions: 'Tư thế plank cao, luân phiên co gối về phía ngực với nhịp độ nhanh và dứt khoát.',
   },
   {
@@ -442,6 +486,8 @@ export const EXERCISES = [
     defaultReps: 10,
     defaultSets: 3,
     restSeconds: 60,
+    videoUrl:
+      'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/cardio/burpee.gif',
     instructions: 'Từ tư thế đứng nhảy hạ xuống chống đẩy, bật chân về sau, làm 1 nhịp chống đẩy rồi bật cao lên.',
   },
 ];
@@ -636,6 +682,16 @@ export async function ensureSeedData(prisma: PrismaClient, logger?: Logger): Pro
     if (exerciseCount < EXERCISES.length) {
       await prisma.exercise.createMany({ data: EXERCISES, skipDuplicates: true });
       logger?.log(`Auto-seeded ${EXERCISES.length} exercises.`);
+    }
+
+    // Backfill videoUrl for existing exercises if currently null
+    for (const ex of EXERCISES) {
+      if (ex.videoUrl) {
+        await prisma.exercise.updateMany({
+          where: { id: ex.id, videoUrl: null },
+          data: { videoUrl: ex.videoUrl },
+        });
+      }
     }
 
     if (userCount === 0) {

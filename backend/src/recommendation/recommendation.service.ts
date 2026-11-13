@@ -15,6 +15,8 @@ export interface ExercisePlanItem {
   adaptationNote?: string;
   isProgression?: boolean;
   isRegression?: boolean;
+  videoUrl?: string | null;
+  instructions?: string | null;
 }
 
 export interface RecommendationResult {
@@ -815,6 +817,8 @@ Return ONLY valid JSON with this exact schema:
         adaptationNote: note,
         isProgression,
         isRegression,
+        videoUrl: selected.videoUrl || null,
+        instructions: selected.instructions || null,
       });
 
       if (exerciseList.length >= 5) break;
@@ -916,6 +920,8 @@ Return ONLY valid JSON with this exact schema:
         adaptationNote: 'Bài tập bổ trợ cơ lõi & đốt mỡ',
         isProgression: false,
         isRegression: false,
+        videoUrl: ex.videoUrl || null,
+        instructions: ex.instructions || null,
       });
       if (selectedList.length >= 3) break;
     }
