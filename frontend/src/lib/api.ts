@@ -78,6 +78,13 @@ export class ApiClient {
     });
   }
 
+  static async googleAuth(credential: string) {
+    return this.request<any>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    });
+  }
+
   // User & Profile
   static async getProfile() {
     return this.request<any>('/users/me');

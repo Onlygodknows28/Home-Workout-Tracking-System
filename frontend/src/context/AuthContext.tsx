@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ApiClient } from '../lib/api';
 import { clearGlobalMemoryCache } from './DataCacheContext';
 
@@ -50,6 +51,7 @@ interface AuthContextType {
   isAuthReady: boolean;
   isAuthenticated: boolean;
   login: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -150,6 +152,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthReady(true);
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    clearGlobalMemoryCache();
+    const data = await ApiClient.googleAuth(credential);
+    localStorage.setItem('fit_token', data.accessToken);
+    persistUserCache(data.user);
+    setToken(data.accessToken);
+    setUser(data.user);
+    setIsAuthReady(true);
+  };
+
   const register = async (name: string, email: string, pass: string) => {
     clearGlobalMemoryCache();
     const data = await ApiClient.register({ name, email, password: pass });
@@ -193,6 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthReady,
       isAuthenticated: !!token && !!user,
       login,
+      loginWithGoogle,
       register,
       logout,
       refreshUser,
@@ -201,7 +214,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, token, isLoading, isAuthReady],
   );
 
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
+  return (
+    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'not-configured'}>
+      <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
+    </GoogleOAuthProvider>
+  );
 }
 
 export function useAuth() {
