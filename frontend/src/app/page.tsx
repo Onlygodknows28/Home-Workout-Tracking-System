@@ -38,7 +38,7 @@ export default function HomePage() {
   const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const { language, t } = useLanguage();
   const { getCache, setCache, isFresh, invalidate, prewarmAllTabs, isCacheHydrated } = useDataCache();
-  const { activeWorkout, discardWorkout } = useWorkout();
+  const { activeWorkout, discardWorkout, startWorkout } = useWorkout();
   const router = useRouter();
 
   const [todayStatus, setTodayStatus] = useState<any>(() => getCache(CACHE_KEYS.TODAY_STATUS));
@@ -47,6 +47,7 @@ export default function HomePage() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
   const [sprintBpm, setSprintBpm] = useState(false);
+  const [isStartingAuxiliary, setIsStartingAuxiliary] = useState(false);
   const [rightColRef, rightColHeight] = useDesktopHeightSync([
     isAuthenticated,
     user,
@@ -98,6 +99,24 @@ export default function HomePage() {
       }),
     ]);
     prewarmAllTabs();
+  };
+
+  const handleStartAuxiliaryWorkout = async () => {
+    setIsStartingAuxiliary(true);
+    try {
+      const auxPlan = await ApiClient.getAuxiliaryRecommendation();
+      if (auxPlan) {
+        startWorkout(auxPlan);
+        router.push('/workout');
+      } else {
+        router.push('/workout');
+      }
+    } catch (err) {
+      console.error('Failed to start auxiliary workout', err);
+      router.push('/workout');
+    } finally {
+      setIsStartingAuxiliary(false);
+    }
   };
 
   useEffect(() => {
@@ -647,11 +666,21 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
           {/* LEFT 8 COLUMNS: Equal height with Right Column via rightColHeight */}
           <div
-            style={rightColHeight ? { height: `${rightColHeight}px` } : undefined}
+            style={
+              !isWorkoutDoneToday && rightColHeight
+                ? { height: `${rightColHeight}px` }
+                : rightColHeight
+                ? { minHeight: `${rightColHeight}px` }
+                : undefined
+            }
             className="lg:col-span-8 flex flex-col justify-between gap-5 sm:gap-6 min-h-0"
           >
             {/* SINGLE-LAYER AI WORKOUT BENTO TILE (#EBEBE6, zero nested exercise cards!) */}
-            <div className="bento-tile p-5 sm:p-6 overflow-hidden flex-1 min-h-0 flex flex-col justify-between">
+            <div
+              className={`bento-tile p-5 sm:p-6 flex-1 min-h-0 flex flex-col justify-between ${
+                isWorkoutDoneToday ? 'overflow-visible' : 'overflow-hidden'
+              }`}
+            >
               {isWorkoutDoneToday ? (
                 /* STATE 1: TODAY'S WORKOUT ALREADY COMPLETED (Aligned with Workout Tab) */
                 <div className="flex-1 min-h-0 flex flex-col justify-between space-y-3">
@@ -755,13 +784,19 @@ export default function HomePage() {
                       <span>{language === 'vi' ? 'Đã hoàn thành giáo án thể lực hôm nay' : 'Daily fitness routine completed'}</span>
                     </span>
                     {todayRpe === 1 ? (
-                      <Link
-                        href="/workout"
-                        className="px-5 py-2 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                      <button
+                        type="button"
+                        disabled={isStartingAuxiliary}
+                        onClick={handleStartAuxiliaryWorkout}
+                        className="px-5 py-2.5 rounded-lg btn-cta-red text-xs font-semibold uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-sm hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
                       >
                         <Zap className="w-4 h-4" />
-                        <span>{language === 'vi' ? 'BÀI TẬP BỔ TRỢ (+50 XP)' : 'START FINISHER (+50 XP)'}</span>
-                      </Link>
+                        <span>
+                          {isStartingAuxiliary
+                            ? (language === 'vi' ? 'ĐANG KHỞI TẠO...' : 'STARTING...')
+                            : (language === 'vi' ? 'BÀI TẬP BỔ TRỢ (+50 XP)' : 'START FINISHER (+50 XP)')}
+                        </span>
+                      </button>
                     ) : (
                       <Link
                         href="/workout"
