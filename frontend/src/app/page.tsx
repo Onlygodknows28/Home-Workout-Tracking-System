@@ -322,7 +322,7 @@ export default function HomePage() {
                 {/* Single-Layer Interactive HEART RATE HUD */}
                 <div
                   onClick={() => setSprintBpm(!sprintBpm)}
-                  title="Nhấn để mô phỏng nhịp tim"
+                  title={language === 'vi' ? 'Nhấn để mô phỏng nhịp tim' : 'Tap to simulate heart rate'}
                   className="hud-glass relative z-20 px-5 py-4 w-[215px] cursor-pointer hover:border-[#C42126] transition-colors select-none"
                 >
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[#5C5C5C] mb-0.5">
@@ -660,6 +660,31 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {/* ONBOARDING PROMPT BANNER IF PROFILE NOT COMPLETED */}
+      {!user?.profile && (
+        <div className="bento-tile p-4 sm:p-5 bg-gradient-to-r from-[#FDE8E9]/80 to-[#EBEBE6] border border-[#C42126]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#C42126] text-white flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-display font-extrabold text-base sm:text-lg text-[#333333] uppercase">
+                {t('onboardingPendingBannerTitle')}
+              </h3>
+              <p className="text-xs text-[#5C5C5C] mt-0.5 leading-relaxed max-w-2xl">
+                {t('onboardingPendingBannerDesc')}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/onboarding"
+            className="px-4 py-2.5 rounded-lg btn-cta-red text-xs font-bold uppercase tracking-wider shrink-0 text-center flex items-center justify-center gap-1.5"
+          >
+            <span>{t('onboardingSetupNowBtn')}</span>
+          </Link>
+        </div>
+      )}
 
       {/* MAIN 12-COLUMN SINGLE-LAYER BENTO GRID (8 Cols Workout + 4 Cols Telemetry) */}
       <section>

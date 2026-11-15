@@ -643,11 +643,26 @@ Return ONLY valid JSON with this exact schema:
       this.getExercisesCached(),
     ]);
 
-    if (!user || !user.profile) {
-      throw new Error('User profile incomplete for recommendation');
+    if (!user) {
+      throw new Error('User not found');
     }
 
-    const { profile, workoutLogs } = user;
+    const hasProfile = Boolean(user.profile);
+    const profile = user.profile || {
+      id: 'default-baseline',
+      userId: user.id,
+      height: 170,
+      weight: 65,
+      bmi: 22.5,
+      pushupBaseline: 10,
+      fitnessLevel: 'BEGINNER',
+      primaryGoal: 'GENERAL_FITNESS',
+      injuries: '',
+      availableEquipment: 'BODYWEIGHT',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const workoutLogs = user.workoutLogs || [];
     const rawInjuries = profile.injuries ? profile.injuries.split(',').filter(Boolean) : [];
     const availableEquipment = profile.availableEquipment
       ? profile.availableEquipment.split(',').filter(Boolean)
@@ -688,7 +703,14 @@ Return ONLY valid JSON with this exact schema:
     const lastLog = workoutLogs[0];
     const readableInjuries = this.formatRawInjuriesList(rawInjuries);
 
-    if (!hasHistory) {
+    if (!hasProfile) {
+      strategy = 'COLD_START_CONTENT_BASED';
+      adaptationType = 'INITIAL_CALIBRATION';
+      aiExplanation =
+        'Bạn chưa hoàn tất khảo sát thể lực ban đầu. AI đang áp dụng giáo án Khởi Đầu Toàn Diện (Beginner) an toàn. Hãy hoàn tất hồ sơ thể lực để AI tinh chỉnh bài tập tối ưu.';
+      aiExplanationEn =
+        "You haven't completed your initial fitness assessment yet. AI is applying a safe Baseline Calibration routine. Complete your profile anytime to receive full personalization.";
+    } else if (!hasHistory) {
       strategy = 'COLD_START_CONTENT_BASED';
       adaptationType = healthAnalysis.preferRegression ? 'REGRESSION' : 'INITIAL_CALIBRATION';
       aiExplanation = `Hệ thống phân tích thể lực khởi đầu (BMI: ${profile.bmi}, Chống đẩy: ${profile.pushupBaseline} cái) và loại trừ ${rawInjuries.length} vùng chấn thương (${readableInjuries || 'Không có'}).`;
@@ -870,11 +892,24 @@ Return ONLY valid JSON with this exact schema:
       this.getExercisesCached(),
     ]);
 
-    if (!user || !user.profile) {
-      throw new Error('User profile incomplete for recommendation');
+    if (!user) {
+      throw new Error('User not found');
     }
 
-    const { profile } = user;
+    const profile = user.profile || {
+      id: 'default-baseline',
+      userId: user.id,
+      height: 170,
+      weight: 65,
+      bmi: 22.5,
+      pushupBaseline: 10,
+      fitnessLevel: 'BEGINNER',
+      primaryGoal: 'GENERAL_FITNESS',
+      injuries: '',
+      availableEquipment: 'BODYWEIGHT',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
     const rawInjuries = profile.injuries ? profile.injuries.split(',').filter(Boolean) : [];
     const ruleAnalysis = this.analyzeHealthConditionsRuleBased(rawInjuries);
 

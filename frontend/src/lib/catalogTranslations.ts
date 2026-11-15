@@ -123,9 +123,11 @@ export function getWorkoutPlanTitle(title: string | undefined, language: Languag
 
   const translatePrefix = (str: string) =>
     str
-      .replace('⚡ Tăng Tốc: ', '⚡ Accelerated: ')
-      .replace('🛡️ Phục Hồi & Kiểm Soát: ', '🛡️ Recovery & Control: ')
-      .replace('🔥 Giáo Án Thể Lực: ', '🔥 Fitness Routine: ');
+      .replace(/^(⚡\s*)?Tăng Tốc:\s*/i, '⚡ Accelerated: ')
+      .replace(/^(🛡️\s*)?Phục Hồi & Kiểm Soát:\s*/i, '🛡️ Recovery & Control: ')
+      .replace(/^(🔥\s*)?Giáo Án Thể Lực:\s*/i, '🔥 Fitness Routine: ')
+      .replace(/^(🔥\s*)?Giáo Án Khởi Đầu:\s*/i, '🔥 Baseline Routine: ')
+      .replace(/^(⚡\s*)?Bài Tập Bổ Trợ:\s*/i, '⚡ Auxiliary Finisher: ');
 
   if (cleaned.includes('Đốt Mỡ Toàn Thân')) {
     return translatePrefix(cleaned.replace('Đốt Mỡ Toàn Thân', 'Full-Body Calorie Burn'));
@@ -140,14 +142,41 @@ export function getWorkoutPlanTitle(title: string | undefined, language: Languag
     return translatePrefix(cleaned.replace('Vận Động Toàn Diện & Khớp Linh Hoạt', 'Full Mobility & Joint Health'));
   }
   if (cleaned.includes('Đốt Cháy Cơ Lõi & Giãn Cơ Phục Hồi')) {
-    return cleaned
-      .replace('⚡ Bài Tập Bổ Trợ: ', '⚡ Auxiliary Finisher: ')
-      .replace('Đốt Cháy Cơ Lõi & Giãn Cơ Phục Hồi', 'Core Burnout & Recovery Stretch');
+    return translatePrefix(cleaned.replace('Đốt Cháy Cơ Lõi & Giãn Cơ Phục Hồi', 'Core Burnout & Recovery Stretch'));
+  }
+  if (cleaned.includes('Chuẩn Hóa Thể Lực Nền')) {
+    return translatePrefix(cleaned.replace('Chuẩn Hóa Thể Lực Nền', 'General Fitness Calibration'));
   }
   if (cleaned === 'Calisthenics Hằng Ngày') {
     return 'Daily Calisthenics Routine';
   }
-  return cleaned;
+  return translatePrefix(cleaned);
+}
+
+export function translateNotification(
+  title: string,
+  message: string,
+  language: Language,
+): { title: string; message: string } {
+  if (language === 'vi') return { title, message };
+
+  let t = title;
+  let m = message;
+
+  if (t === 'Hoàn Thành Buổi Tập!') t = 'Workout Completed!';
+  else if (t.startsWith('Chúc Mừng: Lên Cấp')) t = t.replace('Chúc Mừng: Lên Cấp', 'Congratulations: Level Up');
+  else if (t.includes('Đồng Lòng Vượt Ngưỡng')) t = 'Synergy Threshold (Co-op 100 Reps)';
+  else if (t.includes('Quà Tặng Từ Bạn Tập')) t = 'Gift from Workout Buddy';
+  else if (t.includes('Đồng Đội Vừa Hoàn Thành Buổi Tập')) t = 'Buddy Completed Workout';
+
+  m = m
+    .replace('Bạn đã hoàn thành xuất sắc buổi tập hôm nay và nhận được', "You crushed today's workout and earned")
+    .replace('Bạn nhận được', 'You received')
+    .replace('Thẻ Bảo Vệ Chuỗi', 'Streak Freeze Shield')
+    .replace('buổi tập', 'workout')
+    .replace('và cùng thắp sáng đèn nhiệm vụ!', 'and energized your co-op mission!');
+
+  return { title: t, message: m };
 }
 
 export function getAiExplanation(

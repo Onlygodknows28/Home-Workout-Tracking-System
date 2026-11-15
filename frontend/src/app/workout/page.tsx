@@ -27,7 +27,7 @@ import {
 
 export default function WorkoutPlayerPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, isAuthReady } = useAuth();
+  const { user, isAuthenticated, isLoading, isAuthReady } = useAuth();
   const { t, language } = useLanguage();
   const { getCache, setCache, isFresh, isCacheHydrated } = useDataCache();
 
@@ -351,7 +351,9 @@ export default function WorkoutPlayerPage() {
                   ? t('progressionBadge')
                   : recommendation?.adaptationType === 'REGRESSION'
                     ? t('regressionBadge')
-                    : t('optimalBadge')}
+                    : recommendation?.adaptationType === 'INITIAL_CALIBRATION'
+                      ? (language === 'vi' ? '⚡ Chuẩn Hóa Thể Lực Nền' : '⚡ Baseline Calibration')
+                      : t('optimalBadge')}
               </span>
               <h1 className="font-display text-[36px] sm:text-[42px] font-extrabold text-[#333333] leading-none mt-1">
                 {getWorkoutPlanTitle(recommendation?.title, language) || t('aiTodayTitle')}
@@ -390,13 +392,24 @@ export default function WorkoutPlayerPage() {
           {/* Single-Layer Exercise Roster Tile (#EBEBE6 with 1px #D6D6D2 Hairline Rows) */}
           <div className="bento-tile p-5 sm:p-6">
             {/* Flush AI Adaptation Banner (#FDE8E9 & #C42126) */}
-            <div className="-mx-5 sm:-mx-6 -mt-5 sm:-mt-6 mb-3.5 px-5 sm:px-6 py-2.5 bg-[#FDE8E9] border-b border-[#D6D6D2] text-xs text-[#C42126] leading-relaxed">
-              <strong>AI Coach:</strong>{' '}
-              {getAiExplanation(
-                recommendation?.aiExplanation,
-                recommendation?.adaptationType,
-                language,
-                recommendation?.aiExplanationEn,
+            <div className="-mx-5 sm:-mx-6 -mt-5 sm:-mt-6 mb-3.5 px-5 sm:px-6 py-2.5 bg-[#FDE8E9] border-b border-[#D6D6D2] text-xs text-[#C42126] leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <strong>AI Coach:</strong>{' '}
+                {getAiExplanation(
+                  recommendation?.aiExplanation,
+                  recommendation?.adaptationType,
+                  language,
+                  recommendation?.aiExplanationEn,
+                )}
+              </div>
+              {!user?.profile && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/onboarding')}
+                  className="px-2.5 py-1 rounded bg-[#C42126] text-white text-[11px] font-bold uppercase shrink-0 hover:bg-[#a81c20] transition-colors cursor-pointer self-start sm:self-center"
+                >
+                  {language === 'vi' ? 'Làm bài test ➔' : 'Take Test ➔'}
+                </button>
               )}
             </div>
 

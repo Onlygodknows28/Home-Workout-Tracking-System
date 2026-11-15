@@ -53,13 +53,13 @@ export default function RegisterPage() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (cleanName.length < 2 || cleanName.length > 50) {
-      setErrorMsg('Họ và tên phải có độ dài từ 2 đến 50 ký tự.');
+      setErrorMsg(t('errNameLength'));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
-      setErrorMsg('Vui lòng nhập địa chỉ email hợp lệ.');
+      setErrorMsg(t('errValidEmail'));
       return;
     }
 
@@ -84,7 +84,7 @@ export default function RegisterPage() {
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     if (!credentialResponse?.credential) {
-      setErrorMsg('Không nhận được mã xác thực Google.');
+      setErrorMsg(t('errGoogleNoToken'));
       return;
     }
     setIsLoading(true);
@@ -117,14 +117,14 @@ export default function RegisterPage() {
       }
     } catch (err: any) {
       clearTimeout(coldStartTimer);
-      setErrorMsg(err.message || 'Đăng ký bằng Google thất bại.');
+      setErrorMsg(err.message || t('errGoogleFailed'));
       setIsLoading(false);
       setLoadingMessage(null);
     }
   };
 
   const handleGoogleError = () => {
-    setErrorMsg('Đăng ký bằng Google không thành công hoặc đã bị đóng.');
+    setErrorMsg(t('errGoogleClosed'));
   };
 
   return (
@@ -176,11 +176,7 @@ export default function RegisterPage() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() =>
-                setErrorMsg(
-                  'Google OAuth chưa được kích hoạt: Vui lòng cấu hình NEXT_PUBLIC_GOOGLE_CLIENT_ID trong biến môi trường.',
-                )
-              }
+              onClick={() => setErrorMsg(t('googleNotConfigured'))}
               className="w-full py-2.5 px-4 rounded-lg bg-white border border-[#D6D6D2] hover:bg-[#F5F5F0] transition-colors flex items-center justify-center gap-2.5 text-xs font-semibold text-[#333333] shadow-sm cursor-pointer disabled:opacity-50"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

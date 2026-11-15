@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ApiClient } from '../lib/api';
 import { clearGlobalMemoryCache } from './DataCacheContext';
+import { useLanguage } from './LanguageContext';
 
 export interface UserProfile {
   id: string;
@@ -50,9 +51,9 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthReady: boolean;
   isAuthenticated: boolean;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<any>;
   loginWithGoogle: (credential: string) => Promise<any>;
-  register: (name: string, email: string, pass: string) => Promise<void>;
+  register: (name: string, email: string, pass: string) => Promise<any>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   updateUserProfile: (payload: UpdateProfilePayload) => Promise<UserData>;
@@ -63,6 +64,7 @@ const USER_CACHE_KEY = 'fit_user_cache';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { language } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -150,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.accessToken);
     setUser(data.user);
     setIsAuthReady(true);
+    return data;
   };
 
   const loginWithGoogle = async (credential: string) => {
@@ -171,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.accessToken);
     setUser(data.user);
     setIsAuthReady(true);
+    return data;
   };
 
   const logout = () => {
@@ -216,7 +220,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'not-configured'}>
+    <GoogleOAuthProvider
+      clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'not-configured'}
+      locale={language}
+    >
       <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
     </GoogleOAuthProvider>
   );

@@ -102,7 +102,7 @@ export function ExerciseMediaViewer({
       {/* Optional Instructions caption if available */}
       {instructions && !isCollapsed && (
         <div className="px-3.5 py-2 bg-[#F5F5F0] border-t border-[#D6D6D2] text-xs text-[#5C5C5C] leading-relaxed">
-          <strong className="text-[#333333]">Kỹ thuật:</strong> {instructions}
+          <strong className="text-[#333333]">{t('techniqueLabel')}</strong> {instructions}
         </div>
       )}
     </div>

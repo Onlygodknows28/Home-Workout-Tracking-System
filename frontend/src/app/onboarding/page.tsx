@@ -316,6 +316,41 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleQuickStart = async () => {
+    if (
+      !confirm(
+        t('quickStartConfirm') ||
+          'Áp dụng thiết lập thể lực mặc định (Beginner, Không chấn thương, Thể lực tổng hợp)? Bạn có thể cập nhật lại bất kỳ lúc nào trong trang Hồ Sơ.',
+      )
+    ) {
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await ApiClient.submitOnboarding({
+        height: 170,
+        weight: 65,
+        pushupBaseline: 10,
+        primaryGoal: 'GENERAL_FITNESS',
+        injuries: [],
+        availableEquipment: ['BODYWEIGHT', 'CHAIR', 'TOWEL'],
+      });
+      invalidate(CACHE_KEYS.RECOMMENDATION);
+      invalidate(CACHE_KEYS.TODAY_STATUS);
+      await refreshUser();
+      window.location.href = '/';
+    } catch (e) {
+      console.error(e);
+      alert(
+        language === 'vi'
+          ? 'Không thể lưu hồ sơ thể chất. Vui lòng thử lại.'
+          : 'Failed to save onboarding profile.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const bmiStatus = getBmiStatus(bmi);
   const fitnessCat = getFitnessCategory(pushupBaseline);
 
@@ -343,6 +378,16 @@ export default function OnboardingPage() {
               }`}
             />
           ))}
+        </div>
+        <div className="flex justify-end pt-0.5">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleQuickStart}
+            className="text-[11px] font-semibold text-[#5C5C5C] hover:text-[#C42126] transition-colors cursor-pointer underline"
+          >
+            {t('quickStartDefaultBtn')}
+          </button>
         </div>
       </div>
 

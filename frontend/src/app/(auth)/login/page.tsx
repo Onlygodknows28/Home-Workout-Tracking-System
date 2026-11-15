@@ -34,11 +34,11 @@ export default function LoginPage() {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setErrorMsg('Vui lòng nhập địa chỉ email hợp lệ.');
+      setErrorMsg(t('errValidEmail'));
       return;
     }
     if (!password) {
-      setErrorMsg('Vui lòng nhập mật khẩu.');
+      setErrorMsg(t('errPasswordRequired'));
       return;
     }
 
@@ -46,11 +46,20 @@ export default function LoginPage() {
     setErrorMsg(null);
     setLoadingMessage(language === 'vi' ? 'Đang đăng nhập...' : 'Logging in...');
     try {
-      await login(cleanEmail, password);
+      const authData = await login(cleanEmail, password);
       prewarmAllTabs();
-      window.location.href = '/';
+      if (authData?.hasCompletedOnboarding === false) {
+        window.location.href = '/onboarding';
+      } else {
+        window.location.href = '/';
+      }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Login failed. Please check your credentials.');
+      setErrorMsg(
+        err.message ||
+          (language === 'vi'
+            ? 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.'
+            : 'Login failed. Please check your credentials.'),
+      );
       setIsLoading(false);
       setLoadingMessage(null);
     }
@@ -58,7 +67,7 @@ export default function LoginPage() {
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     if (!credentialResponse?.credential) {
-      setErrorMsg('Không nhận được mã xác thực Google.');
+      setErrorMsg(t('errGoogleNoToken'));
       return;
     }
     setIsLoading(true);
@@ -91,14 +100,14 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       clearTimeout(coldStartTimer);
-      setErrorMsg(err.message || 'Đăng nhập Google thất bại.');
+      setErrorMsg(err.message || t('errGoogleFailed'));
       setIsLoading(false);
       setLoadingMessage(null);
     }
   };
 
   const handleGoogleError = () => {
-    setErrorMsg('Đăng nhập Google không thành công hoặc đã bị đóng.');
+    setErrorMsg(t('errGoogleClosed'));
   };
 
   const handleDemoLogin = async (demoEmail: string) => {
@@ -106,9 +115,13 @@ export default function LoginPage() {
     setErrorMsg(null);
     setLoadingMessage(language === 'vi' ? 'Đang vào tài khoản mẫu...' : 'Entering demo account...');
     try {
-      await login(demoEmail, 'password123');
+      const demoAuth = await login(demoEmail, 'password123');
       prewarmAllTabs();
-      window.location.href = '/';
+      if (demoAuth?.hasCompletedOnboarding === false) {
+        window.location.href = '/onboarding';
+      } else {
+        window.location.href = '/';
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Demo login failed.');
       setIsLoading(false);
@@ -165,11 +178,7 @@ export default function LoginPage() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() =>
-                setErrorMsg(
-                  'Google OAuth chưa được kích hoạt: Vui lòng cấu hình NEXT_PUBLIC_GOOGLE_CLIENT_ID trong biến môi trường.',
-                )
-              }
+              onClick={() => setErrorMsg(t('googleNotConfigured'))}
               className="w-full py-2.5 px-4 rounded-lg bg-white border border-[#D6D6D2] hover:bg-[#F5F5F0] transition-colors flex items-center justify-center gap-2.5 text-xs font-semibold text-[#333333] shadow-sm cursor-pointer disabled:opacity-50"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

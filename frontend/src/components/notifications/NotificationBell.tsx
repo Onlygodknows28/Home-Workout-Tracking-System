@@ -19,6 +19,7 @@ import {
 import { ApiClient } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
+import { translateNotification } from '../../lib/catalogTranslations';
 
 interface NotificationItem {
   id: string;
@@ -280,35 +281,37 @@ export function NotificationBell() {
                 </p>
               </div>
             ) : (
-              displayedNotifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  onClick={() => handleItemClick(notif)}
-                  className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer group relative ${
-                    notif.isRead
-                      ? 'bg-transparent hover:bg-[#EBEBE6]/60'
-                      : 'bg-[#FDE8E9]/60 hover:bg-[#FDE8E9] border-l-2 border-[#C42126]'
-                  }`}
-                >
-                  <div className="mt-0.5 shrink-0">{getNotificationIcon(notif.type)}</div>
+              displayedNotifications.map((notif) => {
+                const localized = translateNotification(notif.title, notif.message, language);
+                return (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleItemClick(notif)}
+                    className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer group relative ${
+                      notif.isRead
+                        ? 'bg-transparent hover:bg-[#EBEBE6]/60'
+                        : 'bg-[#FDE8E9]/60 hover:bg-[#FDE8E9] border-l-2 border-[#C42126]'
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">{getNotificationIcon(notif.type)}</div>
 
-                  <div className="flex-1 min-w-0 pr-6">
-                    <div className="flex items-center gap-1.5">
-                      <h4
-                        className={`text-xs font-bold truncate ${
-                          notif.isRead ? 'text-[#5C5C5C]' : 'text-[#333333]'
-                        }`}
-                      >
-                        {notif.title}
-                      </h4>
-                      {!notif.isRead && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#C42126] shrink-0" />
-                      )}
-                    </div>
+                    <div className="flex-1 min-w-0 pr-6">
+                      <div className="flex items-center gap-1.5">
+                        <h4
+                          className={`text-xs font-bold truncate ${
+                            notif.isRead ? 'text-[#5C5C5C]' : 'text-[#333333]'
+                          }`}
+                        >
+                          {localized.title}
+                        </h4>
+                        {!notif.isRead && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#C42126] shrink-0" />
+                        )}
+                      </div>
 
-                    <p className="text-xs mt-1 leading-relaxed line-clamp-2 text-[#5C5C5C]">
-                      {notif.message}
-                    </p>
+                      <p className="text-xs mt-1 leading-relaxed line-clamp-2 text-[#5C5C5C]">
+                        {localized.message}
+                      </p>
 
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-[11px] text-[#5C5C5C]">
@@ -342,7 +345,8 @@ export function NotificationBell() {
                     </button>
                   </div>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
         </div>

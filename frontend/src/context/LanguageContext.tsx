@@ -315,6 +315,22 @@ const translations: Record<Language, Record<string, string>> = {
     passwordRuleNumber: 'Chứa ít nhất 1 chữ số (0-9)',
     showPassword: 'Hiện mật khẩu',
     hidePassword: 'Ẩn mật khẩu',
+    errValidEmail: 'Vui lòng nhập địa chỉ email hợp lệ.',
+    errPasswordRequired: 'Vui lòng nhập mật khẩu.',
+    errNameLength: 'Họ và tên phải có độ dài từ 2 đến 50 ký tự.',
+    errGoogleNoToken: 'Không nhận được mã xác thực Google.',
+    errGoogleFailed: 'Đăng nhập Google thất bại.',
+    errGoogleClosed: 'Đăng nhập Google không thành công hoặc đã bị đóng.',
+    googleNotConfigured:
+      'Google OAuth chưa được kích hoạt: Vui lòng cấu hình NEXT_PUBLIC_GOOGLE_CLIENT_ID trong biến môi trường.',
+    techniqueLabel: 'Kỹ thuật:',
+    onboardingPendingBannerTitle: 'Chưa Khởi Tạo Hồ Sơ Thể Lực AI',
+    onboardingPendingBannerDesc:
+      'Bạn đang tập theo giáo án Khởi Đầu Toàn Diện. Hãy dành 60 giây làm bài test để AI cá nhân hóa độ khó, lọc chấn thương và tính lượng calo chính xác.',
+    onboardingSetupNowBtn: 'Thiết Lập Hồ Sơ Ngay (1 Phút) ➔',
+    quickStartDefaultBtn: 'Bỏ qua & Dùng thiết lập chuẩn (Khởi đầu nhanh) ➔',
+    quickStartConfirm:
+      'Áp dụng thiết lập thể lực mặc định (Beginner, Không chấn thương, Thể lực tổng hợp)? Bạn có thể cập nhật lại bất kỳ lúc nào trong trang Hồ Sơ.',
 
     // Notifications
     notificationsTitle: 'Thông Báo',
@@ -633,6 +649,22 @@ const translations: Record<Language, Record<string, string>> = {
     passwordRuleNumber: 'Contains at least 1 number',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
+    errValidEmail: 'Please enter a valid email address.',
+    errPasswordRequired: 'Please enter your password.',
+    errNameLength: 'Full name must be between 2 and 50 characters.',
+    errGoogleNoToken: 'Google authentication token not received.',
+    errGoogleFailed: 'Google sign-in failed.',
+    errGoogleClosed: 'Google sign-in was cancelled or closed.',
+    googleNotConfigured:
+      'Google OAuth not configured: Please set NEXT_PUBLIC_GOOGLE_CLIENT_ID in environment.',
+    techniqueLabel: 'Technique:',
+    onboardingPendingBannerTitle: 'AI Fitness Profile Incomplete',
+    onboardingPendingBannerDesc:
+      'You are currently on the Baseline Routine. Take 60 seconds to complete your assessment for full AI personalization, joint protection, and calorie targets.',
+    onboardingSetupNowBtn: 'Complete Setup (1 Min) ➔',
+    quickStartDefaultBtn: 'Skip & use default settings (Quick Start) ➔',
+    quickStartConfirm:
+      'Apply default fitness settings (Beginner, No injuries, General Fitness)? You can update this anytime in your profile.',
 
     // Notifications
     notificationsTitle: 'Notifications',
@@ -651,14 +683,21 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('vi');
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fit_language') as Language | null;
+      if (saved && (saved === 'vi' || saved === 'en')) {
+        return saved;
+      }
+    }
+    return 'vi';
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem('fit_language') as Language | null;
-    if (saved && (saved === 'vi' || saved === 'en')) {
-      setLanguageState(saved);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
     }
-  }, []);
+  }, [language]);
 
   const setLanguage = React.useCallback((lang: Language) => {
     setLanguageState(lang);
