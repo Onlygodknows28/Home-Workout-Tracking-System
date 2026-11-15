@@ -73,7 +73,6 @@ export default function RegisterPage() {
     setLoadingMessage(language === 'vi' ? 'Đang tạo tài khoản...' : 'Creating your account...');
     try {
       await register(cleanName, cleanEmail, password);
-      prewarmAllTabs();
       window.location.href = '/onboarding';
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed.');
@@ -106,7 +105,6 @@ export default function RegisterPage() {
 
     try {
       const authData = await loginWithGoogle(credentialResponse.credential);
-      prewarmAllTabs();
       clearTimeout(coldStartTimer);
 
       // Reliable navigation via window.location.href

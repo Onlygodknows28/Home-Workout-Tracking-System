@@ -123,12 +123,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             applyUserIfChanged(userData);
             persistUserCache(userData);
           })
-          .catch(() => {
-            localStorage.removeItem('fit_token');
-            clearGlobalMemoryCache();
-            persistUserCache(null);
-            setToken(null);
-            setUser(null);
+          .catch((err: any) => {
+            // ONLY destroy session if the server explicitly confirmed the token is invalid/expired (HTTP 401)
+            if (err?.status === 401) {
+              localStorage.removeItem('fit_token');
+              clearGlobalMemoryCache();
+              persistUserCache(null);
+              setToken(null);
+              setUser(null);
+            } else {
+              // Network drop, timeout (408), 500, 502, 503, 504: retain session and keep cached user intact!
+              console.warn('ApiClient.getProfile encountered transient error, retaining session:', err);
+            }
           })
           .finally(() => {
             setIsLoading(false);

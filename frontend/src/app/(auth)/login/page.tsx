@@ -47,7 +47,6 @@ export default function LoginPage() {
     setLoadingMessage(language === 'vi' ? 'Đang đăng nhập...' : 'Logging in...');
     try {
       const authData = await login(cleanEmail, password);
-      prewarmAllTabs();
       if (authData?.hasCompletedOnboarding === false) {
         window.location.href = '/onboarding';
       } else {
@@ -89,7 +88,6 @@ export default function LoginPage() {
 
     try {
       const authData = await loginWithGoogle(credentialResponse.credential);
-      prewarmAllTabs();
       clearTimeout(coldStartTimer);
 
       // Reliable navigation via window.location.href
@@ -116,7 +114,6 @@ export default function LoginPage() {
     setLoadingMessage(language === 'vi' ? 'Đang vào tài khoản mẫu...' : 'Entering demo account...');
     try {
       const demoAuth = await login(demoEmail, 'password123');
-      prewarmAllTabs();
       if (demoAuth?.hasCompletedOnboarding === false) {
         window.location.href = '/onboarding';
       } else {

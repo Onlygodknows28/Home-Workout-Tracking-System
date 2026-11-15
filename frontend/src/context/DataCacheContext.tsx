@@ -199,7 +199,7 @@ export function DataCacheProvider({ children }: { children: React.ReactNode }) {
       } finally {
         isPrewarming = false;
       }
-    }, 150);
+    }, 3000);
   }, [isFresh, setCache]);
 
   useEffect(() => {

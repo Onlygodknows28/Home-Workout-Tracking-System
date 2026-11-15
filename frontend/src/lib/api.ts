@@ -3,6 +3,18 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 // Deduplicate concurrent identical GET requests in-flight
 const inFlightGetRequests = new Map<string, Promise<any>>();
 
+export class ApiError extends Error {
+  status: number;
+  data?: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 export interface AiChatHistoryItem {
   role: 'user' | 'assistant';
   content: string;
@@ -59,13 +71,14 @@ export class ApiClient {
 
         if (!res.ok) {
           const errorMsg = data.message || `Lỗi yêu cầu (${res.status})`;
-          throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+          const formattedMsg = Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg;
+          throw new ApiError(formattedMsg, res.status, data);
         }
 
         return data as T;
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          throw new Error('Kết nối máy chủ quá thời gian chờ (Server timeout). Vui lòng thử lại sau giây lát.');
+          throw new ApiError('Kết nối máy chủ quá thời gian chờ (Server timeout). Vui lòng thử lại sau giây lát.', 408);
         }
         throw err;
       } finally {

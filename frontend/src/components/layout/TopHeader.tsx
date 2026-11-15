@@ -207,15 +207,20 @@ export function TopHeader() {
                 href="/profile"
                 className="pr-3 hover:text-[#C42126] transition-colors flex items-center gap-1.5"
               >
-                <span className="font-telemetry font-bold text-[#C42126]">LV.{user.level}</span>
-                <span>{formatPersonName(user.name.split(' ')[0], language)}</span>
+                <span className="font-telemetry font-bold text-[#C42126]">LV.{user.level ?? 1}</span>
+                <span>
+                  {formatPersonName(
+                    user.name?.trim() ? user.name.trim().split(/\s+/)[0] : (language === 'vi' ? 'Vận động viên' : 'Athlete'),
+                    language
+                  )}
+                </span>
               </Link>
 
               {/* Streak */}
               <div className="px-3 flex items-center gap-1">
                 <Flame className="w-3.5 h-3.5 text-[#C42126] fill-[#C42126]" />
-                <span className="font-telemetry font-bold">{user.currentStreak}d</span>
-                {user.streakFreezeCount > 0 && (
+                <span className="font-telemetry font-bold">{user.currentStreak ?? 0}d</span>
+                {(user.streakFreezeCount ?? 0) > 0 && (
                   <Shield className="w-3.5 h-3.5 text-[#2E7D32] ml-0.5" />
                 )}
               </div>
@@ -226,7 +231,7 @@ export function TopHeader() {
                 className="pl-3 flex items-center gap-1 hover:text-[#C42126] transition-colors"
               >
                 <Coins className="w-3.5 h-3.5 text-[#C42126]" />
-                <span className="font-telemetry font-bold">{user.fitCoins}</span>
+                <span className="font-telemetry font-bold">{user.fitCoins ?? 0}</span>
               </Link>
             </div>
           ) : (
