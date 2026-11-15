@@ -9,6 +9,15 @@ export interface AiChatHistoryItem {
 }
 
 export class ApiClient {
+  static wakeUpBackend() {
+    if (typeof window === 'undefined') return;
+    try {
+      fetch(`${API_BASE}/api/docs`, { method: 'GET', mode: 'no-cors' }).catch(() => {});
+    } catch {
+      // Ignore background wake errors
+    }
+  }
+
   private static getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('fit_token');
@@ -36,19 +45,32 @@ export class ApiClient {
     }
 
     const executeFetch = (async () => {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers,
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 65000);
 
-      const data = await res.json().catch(() => ({}));
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
+          ...options,
+          headers,
+          signal: options.signal || controller.signal,
+        });
 
-      if (!res.ok) {
-        const errorMsg = data.message || `Lỗi yêu cầu (${res.status})`;
-        throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const errorMsg = data.message || `Lỗi yêu cầu (${res.status})`;
+          throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+        }
+
+        return data as T;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          throw new Error('Kết nối máy chủ quá thời gian chờ (Server timeout). Vui lòng thử lại sau giây lát.');
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      return data as T;
     })();
 
     if (dedupeKey) {

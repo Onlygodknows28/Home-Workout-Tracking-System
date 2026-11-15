@@ -51,7 +51,7 @@ interface AuthContextType {
   isAuthReady: boolean;
   isAuthenticated: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  loginWithGoogle: (credential: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<any>;
   register: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -160,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.accessToken);
     setUser(data.user);
     setIsAuthReady(true);
+    return data;
   };
 
   const register = async (name: string, email: string, pass: string) => {

@@ -100,10 +100,11 @@ export class AuthService {
   async loginWithGoogle(dto: GoogleAuthDto) {
     let payload: any;
     try {
-      const googleClientId = process.env.GOOGLE_CLIENT_ID;
+      const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim().replace(/^["']|["']$/g, '');
+      const audience = googleClientId ? [googleClientId] : undefined;
       const ticket = await this.googleClient.verifyIdToken({
         idToken: dto.credential,
-        audience: googleClientId || undefined,
+        audience,
       });
       payload = ticket.getPayload();
     } catch (err: any) {

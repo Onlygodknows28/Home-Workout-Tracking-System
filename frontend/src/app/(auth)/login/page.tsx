@@ -1,27 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../../context/AuthContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useDataCache } from '../../../context/DataCacheContext';
-import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { ApiClient } from '../../../lib/api';
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, loginWithGoogle } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { prewarmAllTabs } = useDataCache();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const hasGoogleConfig = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+  // Immediately wake up sleeping Render backend in parallel on page load
+  useEffect(() => {
+    ApiClient.wakeUpBackend();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,14 +44,15 @@ export default function LoginPage() {
 
     setIsLoading(true);
     setErrorMsg(null);
+    setLoadingMessage(language === 'vi' ? 'Đang đăng nhập...' : 'Logging in...');
     try {
       await login(cleanEmail, password);
       prewarmAllTabs();
-      router.push('/');
+      window.location.href = '/';
     } catch (err: any) {
       setErrorMsg(err.message || 'Login failed. Please check your credentials.');
-    } finally {
       setIsLoading(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -55,14 +63,37 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     setErrorMsg(null);
+    setLoadingMessage(
+      language === 'vi'
+        ? 'Đang xác thực tài khoản Google...'
+        : 'Verifying Google account...',
+    );
+
+    // Warm-up indicator if backend is cold-starting
+    const coldStartTimer = setTimeout(() => {
+      setLoadingMessage(
+        language === 'vi'
+          ? 'Máy chủ đang khởi động lại (cold-start), vui lòng đợi trong giây lát...'
+          : 'Backend server is waking up, please wait a moment...',
+      );
+    }, 3500);
+
     try {
-      await loginWithGoogle(credentialResponse.credential);
+      const authData = await loginWithGoogle(credentialResponse.credential);
       prewarmAllTabs();
-      router.push('/');
+      clearTimeout(coldStartTimer);
+
+      // Reliable navigation via window.location.href
+      if (authData?.hasCompletedOnboarding === false) {
+        window.location.href = '/onboarding';
+      } else {
+        window.location.href = '/';
+      }
     } catch (err: any) {
+      clearTimeout(coldStartTimer);
       setErrorMsg(err.message || 'Đăng nhập Google thất bại.');
-    } finally {
       setIsLoading(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -73,14 +104,15 @@ export default function LoginPage() {
   const handleDemoLogin = async (demoEmail: string) => {
     setIsLoading(true);
     setErrorMsg(null);
+    setLoadingMessage(language === 'vi' ? 'Đang vào tài khoản mẫu...' : 'Entering demo account...');
     try {
       await login(demoEmail, 'password123');
       prewarmAllTabs();
-      router.push('/');
+      window.location.href = '/';
     } catch (err: any) {
       setErrorMsg(err.message || 'Demo login failed.');
-    } finally {
       setIsLoading(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -98,6 +130,21 @@ export default function LoginPage() {
         {errorMsg && (
           <div className="mt-4 bg-[#FDE8E9] border border-[#C42126]/30 rounded-lg p-3 text-xs font-semibold text-[#C42126]">
             {errorMsg}
+          </div>
+        )}
+
+        {/* LOADING NOTIFICATION BANNER (Prevents any perceived freeze during server wake-up) */}
+        {isLoading && (
+          <div className="mt-4 p-3.5 rounded-xl bg-[#FFFFFF] border border-[#C42126]/40 shadow-sm flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-[#C42126] animate-spin shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold text-[#333333]">
+                {loadingMessage || (language === 'vi' ? 'Đang xử lý...' : 'Processing...')}
+              </p>
+              <p className="text-[11px] text-[#5C5C5C] mt-0.5">
+                {language === 'vi' ? 'Vui lòng không tải lại trang' : 'Please do not refresh the page'}
+              </p>
+            </div>
           </div>
         )}
 
