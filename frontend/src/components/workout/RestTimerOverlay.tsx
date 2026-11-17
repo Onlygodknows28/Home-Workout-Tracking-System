@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { useWorkout } from '../../context/WorkoutContext';
+import { useWorkout, useWorkoutTimer } from '../../context/WorkoutContext';
 import { GiantButton } from '../ui/GiantButton';
 import { formatTime } from '../../lib/utils';
 import { FastForward, Plus, Minus, Pause, Play, Minimize2, X } from 'lucide-react';
@@ -21,12 +21,12 @@ export function RestTimerOverlay({
   const { t } = useLanguage();
   const {
     activeWorkout,
-    remainingRestSeconds,
     togglePauseRest,
     addRestSeconds,
     completeRest,
     minimizeRestModal,
   } = useWorkout();
+  const { remainingRestSeconds } = useWorkoutTimer();
 
   const isPaused = activeWorkout.isRestPaused;
   const totalSeconds = Math.max(1, activeWorkout.restTotalSeconds || 45);

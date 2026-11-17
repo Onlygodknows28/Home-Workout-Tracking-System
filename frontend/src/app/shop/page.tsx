@@ -22,6 +22,7 @@ export default function ShopPage() {
   const [isDataLoading, setIsDataLoading] = useState(() => !getCache(CACHE_KEYS.SHOP_ITEMS));
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthReady) return;
@@ -71,20 +72,33 @@ export default function ShopPage() {
   };
 
   const handleBuy = async (itemId: string, itemName: string, price: number) => {
+    setErrorMsg(null);
     if (!user || user.fitCoins < price) {
-      alert(`${t('notEnoughCoins')}: ${price} FitCoins`);
+      setErrorMsg(`${t('notEnoughCoins')}: ${price} FitCoins`);
+      setTimeout(() => setErrorMsg(null), 4000);
       return;
     }
 
     setBuyingId(itemId);
     try {
-      await ApiClient.buyShopItem(itemId);
-      invalidate('shop_');
-      await Promise.all([refreshUser(), loadShop(false)]);
+      const res = await ApiClient.buyShopItem(itemId);
+      invalidate(CACHE_KEYS.SHOP_INVENTORY);
+      if (Array.isArray(res?.user?.inventory)) {
+        setInventory(res.user.inventory);
+        setCache(CACHE_KEYS.SHOP_INVENTORY, res.user.inventory);
+      } else {
+        const freshInv = await ApiClient.getInventory().catch(() => null);
+        if (freshInv) {
+          setInventory(freshInv);
+          setCache(CACHE_KEYS.SHOP_INVENTORY, freshInv);
+        }
+      }
+      await refreshUser();
       setSuccessMsg(`✓ ${itemName}`);
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e: any) {
-      alert(e.message || 'Transaction failed');
+      setErrorMsg(e.message || 'Transaction failed');
+      setTimeout(() => setErrorMsg(null), 4000);
     } finally {
       setBuyingId(null);
     }
@@ -145,6 +159,12 @@ export default function ShopPage() {
       {successMsg && (
         <div className="bg-[#EBEBE6] border border-[#2E7D32] rounded-lg p-3.5 text-xs font-bold text-[#2E7D32] text-center">
           {successMsg}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-[#FDE8E9] border border-[#C42126] rounded-lg p-3.5 text-xs font-bold text-[#C42126] text-center">
+          {errorMsg}
         </div>
       )}
 

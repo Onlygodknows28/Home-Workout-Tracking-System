@@ -87,8 +87,9 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = React.useCallback(async () => {
     if (!isAuthenticated) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     try {
       const res = await ApiClient.getNotifications();
       if (res && Array.isArray(res.notifications)) {
@@ -98,16 +99,31 @@ export function NotificationBell() {
     } catch {
       // Ignore background fetch errors
     }
-  };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchNotifications();
+    const initialTimer = setTimeout(() => {
+      fetchNotifications();
+    }, 1200);
+
     const interval = setInterval(() => {
       fetchNotifications();
-    }, 25000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated, fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

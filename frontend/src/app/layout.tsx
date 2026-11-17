@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import dynamic from 'next/dynamic';
 import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
@@ -8,7 +9,10 @@ import { WorkoutProvider } from '../context/WorkoutContext';
 import { TopHeader } from '../components/layout/TopHeader';
 import { MobileNav } from '../components/layout/MobileNav';
 import { MiniWorkoutBar } from '../components/workout/MiniWorkoutBar';
-import { AiCoachChatbot } from '../components/workout/AiCoachChatbot';
+
+const AiCoachChatbot = dynamic(() =>
+  import('../components/workout/AiCoachChatbot').then((mod) => mod.AiCoachChatbot),
+);
 
 const plusJakarta = localFont({
   src: [

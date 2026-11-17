@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useWorkout } from '../../context/WorkoutContext';
+import { useWorkout, useWorkoutTimer } from '../../context/WorkoutContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatTime } from '../../lib/utils';
 import { getExerciseName, getWorkoutPlanTitle } from '../../lib/catalogTranslations';
@@ -22,8 +22,6 @@ export function MiniWorkoutBar() {
   const { t, language } = useLanguage();
   const {
     activeWorkout,
-    elapsedSeconds,
-    remainingRestSeconds,
     isMiniBarVisibleOnPath,
     maximizeRestModal,
     reopenRpeModal,
@@ -31,6 +29,7 @@ export function MiniWorkoutBar() {
     addRestSeconds,
     discardWorkout,
   } = useWorkout();
+  const { elapsedSeconds, remainingRestSeconds } = useWorkoutTimer();
 
   const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useDataCache, CACHE_KEYS } from '../../context/DataCacheContext';
-import { useWorkout } from '../../context/WorkoutContext';
+import { useWorkout, useWorkoutTimer } from '../../context/WorkoutContext';
 import { ApiClient } from '../../lib/api';
 import { GiantButton } from '../../components/ui/GiantButton';
 import { RestTimerOverlay } from '../../components/workout/RestTimerOverlay';
@@ -33,7 +33,6 @@ export default function WorkoutPlayerPage() {
 
   const {
     activeWorkout,
-    elapsedSeconds,
     isRestModalMinimized,
     minimizeRestModal,
     dismissRpeModal,
@@ -44,6 +43,7 @@ export default function WorkoutPlayerPage() {
     discardWorkout,
     submitWorkout,
   } = useWorkout();
+  const { elapsedSeconds } = useWorkoutTimer();
 
   const [recommendation, setRecommendation] = useState<any>(() => {
     if (activeWorkout.isActive && activeWorkout.recommendation) {

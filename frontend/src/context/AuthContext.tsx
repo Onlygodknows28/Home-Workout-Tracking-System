@@ -1,10 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ApiClient } from '../lib/api';
 import { clearGlobalMemoryCache } from './DataCacheContext';
-import { useLanguage } from './LanguageContext';
 
 export interface UserProfile {
   id: string;
@@ -64,13 +62,12 @@ const USER_CACHE_KEY = 'fit_user_cache';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { language } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
-  const persistUserCache = (userData: UserData | null) => {
+  const persistUserCache = useCallback((userData: UserData | null) => {
     if (typeof window === 'undefined') return;
     try {
       if (userData) {
@@ -81,16 +78,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore storage quota errors
     }
-  };
+  }, []);
 
-  const applyUserIfChanged = (nextUser: UserData | null) => {
+  const applyUserIfChanged = useCallback((nextUser: UserData | null) => {
     setUser((prev) => {
       if (prev && nextUser && JSON.stringify(prev) === JSON.stringify(nextUser)) {
         return prev;
       }
       return nextUser;
     });
-  };
+  }, []);
 
   useEffect(() => {
     try {
@@ -148,9 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       setIsAuthReady(true);
     }
-  }, []);
+  }, [applyUserIfChanged, persistUserCache]);
 
-  const login = async (email: string, pass: string) => {
+  const login = useCallback(async (email: string, pass: string) => {
     clearGlobalMemoryCache();
     const data = await ApiClient.login({ email, password: pass });
     localStorage.setItem('fit_token', data.accessToken);
@@ -159,9 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setIsAuthReady(true);
     return data;
-  };
+  }, [persistUserCache]);
 
-  const loginWithGoogle = async (credential: string) => {
+  const loginWithGoogle = useCallback(async (credential: string) => {
     clearGlobalMemoryCache();
     const data = await ApiClient.googleAuth(credential);
     localStorage.setItem('fit_token', data.accessToken);
@@ -170,9 +167,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setIsAuthReady(true);
     return data;
-  };
+  }, [persistUserCache]);
 
-  const register = async (name: string, email: string, pass: string) => {
+  const register = useCallback(async (name: string, email: string, pass: string) => {
     clearGlobalMemoryCache();
     const data = await ApiClient.register({ name, email, password: pass });
     localStorage.setItem('fit_token', data.accessToken);
@@ -181,17 +178,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setIsAuthReady(true);
     return data;
-  };
+  }, [persistUserCache]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('fit_token');
     clearGlobalMemoryCache();
     persistUserCache(null);
     setToken(null);
     setUser(null);
-  };
+  }, [persistUserCache]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const userData = await ApiClient.getProfile();
       applyUserIfChanged(userData);
@@ -199,14 +196,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error('Failed to refresh user', e);
     }
-  };
+  }, [applyUserIfChanged, persistUserCache]);
 
-  const updateUserProfile = async (payload: UpdateProfilePayload): Promise<UserData> => {
+  const updateUserProfile = useCallback(async (payload: UpdateProfilePayload): Promise<UserData> => {
     const updatedUser = await ApiClient.updateProfile(payload);
     applyUserIfChanged(updatedUser);
     persistUserCache(updatedUser);
     return updatedUser;
-  };
+  }, [applyUserIfChanged, persistUserCache]);
 
   const contextValue = React.useMemo(
     () => ({
@@ -222,17 +219,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUser,
       updateUserProfile,
     }),
-    [user, token, isLoading, isAuthReady],
+    [user, token, isLoading, isAuthReady, login, loginWithGoogle, register, logout, refreshUser, updateUserProfile],
   );
 
-  return (
-    <GoogleOAuthProvider
-      clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'not-configured'}
-      locale={language}
-    >
-      <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
-    </GoogleOAuthProvider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

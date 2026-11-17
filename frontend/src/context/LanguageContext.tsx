@@ -683,15 +683,19 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
+  const [language, setLanguageState] = useState<Language>('vi');
+
+  useEffect(() => {
+    try {
       const saved = localStorage.getItem('fit_language') as Language | null;
-      if (saved && (saved === 'vi' || saved === 'en')) {
-        return saved;
+      if (saved && (saved === 'vi' || saved === 'en') && saved !== language) {
+        setLanguageState(saved);
       }
+    } catch {
+      // safe fallback
     }
-    return 'vi';
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {

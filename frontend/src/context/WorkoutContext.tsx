@@ -29,8 +29,6 @@ export interface ActiveWorkoutState {
 
 interface WorkoutContextType {
   activeWorkout: ActiveWorkoutState;
-  elapsedSeconds: number;
-  remainingRestSeconds: number;
   isRestModalMinimized: boolean;
   isRestPaused: boolean;
   isMiniBarVisibleOnPath: (pathname: string) => boolean;
@@ -46,6 +44,11 @@ interface WorkoutContextType {
   reopenRpeModal: () => void;
   discardWorkout: () => void;
   submitWorkout: (rpeScore: number) => Promise<any>;
+}
+
+interface WorkoutTimerContextType {
+  elapsedSeconds: number;
+  remainingRestSeconds: number;
 }
 
 const STORAGE_KEY = 'fit_active_workout';
@@ -79,6 +82,7 @@ function getElapsedSince(startTime: string | null, endTimeMs: number, fallbackSe
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
+const WorkoutTimerContext = createContext<WorkoutTimerContextType | undefined>(undefined);
 
 export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const { invalidate } = useDataCache();
@@ -570,8 +574,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const contextValue = React.useMemo(
     () => ({
       activeWorkout,
-      elapsedSeconds,
-      remainingRestSeconds,
       isRestModalMinimized: activeWorkout.isRestModalMinimized,
       isRestPaused: activeWorkout.isRestPaused,
       isMiniBarVisibleOnPath,
@@ -590,8 +592,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       activeWorkout,
-      elapsedSeconds,
-      remainingRestSeconds,
       isMiniBarVisibleOnPath,
       startWorkout,
       completeSet,
@@ -608,13 +608,35 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
-  return <WorkoutContext.Provider value={contextValue}>{children}</WorkoutContext.Provider>;
+  const timerContextValue = React.useMemo(
+    () => ({
+      elapsedSeconds,
+      remainingRestSeconds,
+    }),
+    [elapsedSeconds, remainingRestSeconds],
+  );
+
+  return (
+    <WorkoutContext.Provider value={contextValue}>
+      <WorkoutTimerContext.Provider value={timerContextValue}>
+        {children}
+      </WorkoutTimerContext.Provider>
+    </WorkoutContext.Provider>
+  );
 }
 
 export function useWorkout() {
   const context = useContext(WorkoutContext);
   if (!context) {
     throw new Error('useWorkout must be used within a WorkoutProvider');
+  }
+  return context;
+}
+
+export function useWorkoutTimer() {
+  const context = useContext(WorkoutTimerContext);
+  if (!context) {
+    throw new Error('useWorkoutTimer must be used within a WorkoutProvider');
   }
   return context;
 }

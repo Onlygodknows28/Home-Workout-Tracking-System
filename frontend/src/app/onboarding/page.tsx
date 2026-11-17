@@ -36,6 +36,8 @@ export default function OnboardingPage() {
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hydratedProfile, setHydratedProfile] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isConfirmingQuickStart, setIsConfirmingQuickStart] = useState(false);
 
   // Pre-fill existing profile data when recalibrating from Profile page
   useEffect(() => {
@@ -306,7 +308,7 @@ export default function OnboardingPage() {
       router.push('/');
     } catch (e) {
       console.error(e);
-      alert(
+      setSubmitError(
         language === 'vi'
           ? 'Không thể lưu hồ sơ thể chất. Vui lòng thử lại.'
           : 'Failed to save onboarding profile.',
@@ -316,15 +318,9 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleQuickStart = async () => {
-    if (
-      !confirm(
-        t('quickStartConfirm') ||
-          'Áp dụng thiết lập thể lực mặc định (Beginner, Không chấn thương, Thể lực tổng hợp)? Bạn có thể cập nhật lại bất kỳ lúc nào trong trang Hồ Sơ.',
-      )
-    ) {
-      return;
-    }
+  const executeQuickStart = async () => {
+    setIsConfirmingQuickStart(false);
+    setSubmitError(null);
     setIsSubmitting(true);
     try {
       await ApiClient.submitOnboarding({
@@ -341,7 +337,7 @@ export default function OnboardingPage() {
       window.location.href = '/';
     } catch (e) {
       console.error(e);
-      alert(
+      setSubmitError(
         language === 'vi'
           ? 'Không thể lưu hồ sơ thể chất. Vui lòng thử lại.'
           : 'Failed to save onboarding profile.',
@@ -383,13 +379,47 @@ export default function OnboardingPage() {
           <button
             type="button"
             disabled={isSubmitting}
-            onClick={handleQuickStart}
+            onClick={() => setIsConfirmingQuickStart(true)}
             className="text-[11px] font-semibold text-[#5C5C5C] hover:text-[#C42126] transition-colors cursor-pointer underline"
           >
             {t('quickStartDefaultBtn')}
           </button>
         </div>
       </div>
+
+      {isConfirmingQuickStart && (
+        <div className="bento-tile p-4 bg-[#FDE8E9]/70 border border-[#C42126]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-xs text-[#333333] font-medium leading-relaxed">
+            {t('quickStartConfirm') ||
+              (language === 'vi'
+                ? 'Áp dụng thiết lập thể lực mặc định (Beginner, Không chấn thương, Thể lực tổng hợp)? Bạn có thể cập nhật lại bất kỳ lúc nào trong trang Hồ Sơ.'
+                : 'Apply default baseline profile (Beginner, No injuries, General Fitness)? You can recalibrate anytime in Profile.')}
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={executeQuickStart}
+              className="px-3.5 py-1.5 rounded-lg btn-cta-red text-xs font-bold uppercase cursor-pointer"
+            >
+              {language === 'vi' ? 'Đồng ý' : 'Confirm'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsConfirmingQuickStart(false)}
+              className="px-3.5 py-1.5 rounded-lg border border-[#D6D6D2] bg-[#F5F5F0] hover:bg-[#EBEBE6] text-xs font-semibold text-[#333333] cursor-pointer"
+            >
+              {language === 'vi' ? 'Hủy' : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="bg-[#FDE8E9] border border-[#C42126] rounded-lg p-3 text-xs font-bold text-[#C42126] text-center">
+          {submitError}
+        </div>
+      )}
 
       {/* STEP 1: Body Metrics & BMI */}
       {step === 1 && (

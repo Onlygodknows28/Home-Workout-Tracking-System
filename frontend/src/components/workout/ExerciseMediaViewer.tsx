@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { Play, Eye, EyeOff, Sparkles, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Sparkles } from 'lucide-react';
 
 interface ExerciseMediaViewerProps {
   mediaUrl?: string | null;
@@ -19,6 +19,11 @@ export function ExerciseMediaViewer({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setHasError(false);
+  }, [mediaUrl]);
 
   if (!mediaUrl || hasError) {
     return null;
