@@ -304,6 +304,7 @@ export default function OnboardingPage() {
 
       invalidate(CACHE_KEYS.RECOMMENDATION);
       invalidate(CACHE_KEYS.TODAY_STATUS);
+      invalidate(CACHE_KEYS.BUDDY_CANDIDATES);
       await refreshUser();
       router.push('/');
     } catch (e) {
@@ -333,6 +334,7 @@ export default function OnboardingPage() {
       });
       invalidate(CACHE_KEYS.RECOMMENDATION);
       invalidate(CACHE_KEYS.TODAY_STATUS);
+      invalidate(CACHE_KEYS.BUDDY_CANDIDATES);
       await refreshUser();
       window.location.href = '/';
     } catch (e) {

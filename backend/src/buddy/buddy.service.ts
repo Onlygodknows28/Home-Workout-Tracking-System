@@ -146,39 +146,71 @@ export class BuddyService {
 
   // Radar Matchmaking to find ideal workout partners
   async findBuddyMatches(userId: string): Promise<BuddyMatchCandidate[]> {
-    const me = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { profile: true },
-    });
+    const [me, activePairs, otherUsers] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true },
+      }),
+      this.prisma.buddyPair.findMany({
+        where: {
+          status: { in: ['ACTIVE', 'active'] },
+        },
+        select: {
+          user1Id: true,
+          user2Id: true,
+        },
+      }),
+      this.prisma.user.findMany({
+        where: {
+          id: { not: userId },
+        },
+        include: { profile: true },
+      }),
+    ]);
 
-    if (!me || !me.profile) {
-      throw new BadRequestException('Vui lòng hoàn thành Onboarding trước khi tìm bạn tập');
+    if (!me) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng');
     }
 
-    const otherUsers = await this.prisma.user.findMany({
-      where: {
-        id: { not: userId },
-        profile: { isNot: null },
-      },
-      include: { profile: true },
-      take: 20,
-    });
+    const defaultBaselineProfile = {
+      bmi: 22.0,
+      pushupBaseline: 10,
+      fitnessLevel: 'BEGINNER',
+      primaryGoal: 'GENERAL_FITNESS',
+    };
 
-    const candidates: BuddyMatchCandidate[] = otherUsers
+    const myProfile = me.profile || defaultBaselineProfile;
+
+    // Build set of users who already have an active 1-1 buddy
+    const occupiedUserIds = new Set<string>();
+    for (const pair of activePairs) {
+      occupiedUserIds.add(pair.user1Id);
+      occupiedUserIds.add(pair.user2Id);
+    }
+
+    // Filter to available (unpaired) candidates; fallback to all other users only if 0 unpaired exist
+    const availablePool = otherUsers.filter((u) => !occupiedUserIds.has(u.id));
+    const targetPool = availablePool.length > 0 ? availablePool : otherUsers;
+
+    const candidates: BuddyMatchCandidate[] = targetPool
       .map((u) => {
-        const score = this.calculateSimilarity(me.profile, u.profile);
+        const candidateProfile = u.profile || defaultBaselineProfile;
+        const score = this.calculateSimilarity(myProfile, candidateProfile);
         return {
           userId: u.id,
-          name: u.name,
-          avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.name)}`,
-          bmi: u.profile?.bmi || 22,
-          fitnessLevel: u.profile?.fitnessLevel || 'BEGINNER',
-          pushupBaseline: u.profile?.pushupBaseline || 10,
-          primaryGoal: u.profile?.primaryGoal || 'MUSCLE_GAIN',
+          name: u.name || u.email.split('@')[0],
+          avatar:
+            u.avatar ||
+            `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.name || u.email)}`,
+          bmi: candidateProfile.bmi || 22,
+          fitnessLevel: candidateProfile.fitnessLevel || 'BEGINNER',
+          pushupBaseline: candidateProfile.pushupBaseline ?? 10,
+          primaryGoal: candidateProfile.primaryGoal || 'GENERAL_FITNESS',
           similarityScore: score,
         };
       })
-      .sort((a, b) => b.similarityScore - a.similarityScore);
+      .sort((a, b) => b.similarityScore - a.similarityScore)
+      .slice(0, 50);
 
     return candidates;
   }
