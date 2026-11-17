@@ -697,6 +697,20 @@ export async function ensureSeedData(prisma: PrismaClient, logger?: Logger): Pro
     if (userCount === 0) {
       await seedDemoUsersAndBuddy(prisma, false);
       logger?.log(`Auto-seeded ${DEMO_USERS.length} initial demo accounts and buddy mission.`);
+    } else {
+      // Clean up any automated probe/test accounts from the database
+      const deletedTests = await prisma.user.deleteMany({
+        where: {
+          OR: [
+            { email: { startsWith: 'test_' } },
+            { email: { startsWith: 'test_reload_' } },
+            { name: { in: ['Test Schema', 'Test Reload'] } },
+          ],
+        },
+      });
+      if (deletedTests.count > 0) {
+        logger?.log(`Cleaned up ${deletedTests.count} automated test account(s) from database.`);
+      }
     }
 
     hasVerifiedSeed = true;

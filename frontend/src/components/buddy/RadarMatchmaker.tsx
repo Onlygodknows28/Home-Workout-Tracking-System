@@ -9,7 +9,7 @@ import {
   getGoalLabel,
 } from '../../lib/catalogTranslations';
 
-const INITIAL_VISIBLE_CANDIDATES = 6;
+const BATCH_SIZE = 5;
 
 interface Candidate {
   userId: string;
@@ -31,12 +31,11 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
   const { t, language } = useLanguage();
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectedId, setConnectedId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(BATCH_SIZE);
 
-  const visibleCandidates = showAll
-    ? candidates
-    : candidates.slice(0, INITIAL_VISIBLE_CANDIDATES);
-  const hiddenCount = Math.max(0, candidates.length - INITIAL_VISIBLE_CANDIDATES);
+  const visibleCandidates = candidates.slice(0, visibleCount);
+  const remainingCount = Math.max(0, candidates.length - visibleCount);
+  const nextLoadCount = Math.min(BATCH_SIZE, remainingCount);
 
   const handleConnect = async (userId: string) => {
     setConnectingId(userId);
@@ -68,20 +67,20 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
         </span>
       </div>
 
-      {/* Single-Layer Candidate Roster (Flush 1px #D6D6D2 Hairline Rows — Zero nested cards!) */}
-      <div className="divide-y divide-[#D6D6D2]">
+      {/* Single-Layer Candidate Roster inside a compact scrollable frame (5 users per load) */}
+      <div className="max-h-[420px] overflow-y-auto pr-1.5 divide-y divide-[#D6D6D2] exercise-scroll">
         {visibleCandidates.map((cand, idx) => {
           const isConnected = connectedId === cand.userId;
 
           return (
             <div
               key={cand.userId}
-              className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
             >
               <div className="flex items-center gap-4 min-w-0">
                 {/* Unboxed Tabular Similarity Score */}
                 <span
-                  className={`font-display text-[38px] font-extrabold leading-none font-telemetry w-16 shrink-0 ${
+                  className={`font-display text-[36px] font-extrabold leading-none font-telemetry w-16 shrink-0 ${
                     idx === 0 ? 'text-[#C42126]' : 'text-[#333333]'
                   }`}
                 >
@@ -152,29 +151,43 @@ export function RadarMatchmaker({ candidates, onConnect }: RadarMatchmakerProps)
         )}
       </div>
 
-      {candidates.length > INITIAL_VISIBLE_CANDIDATES && (
-        <div className="pt-4 border-t border-[#D6D6D2] flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowAll((prev) => !prev)}
-            className="px-4 py-2 rounded-lg bg-[#F5F5F0] hover:bg-[#D6D6D2]/60 border border-[#D6D6D2] text-xs font-bold text-[#333333] flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            {showAll ? (
-              <>
-                <ChevronUp className="w-4 h-4 text-[#C42126]" />
-                <span>{language === 'vi' ? 'Thu gọn danh sách' : 'Show fewer candidates'}</span>
-              </>
-            ) : (
-              <>
+      {candidates.length > BATCH_SIZE && (
+        <div className="pt-4 border-t border-[#D6D6D2] flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-[#5C5C5C] font-medium">
+            {language === 'vi'
+              ? `Đang hiển thị ${visibleCandidates.length} / ${candidates.length} vận động viên`
+              : `Showing ${visibleCandidates.length} / ${candidates.length} athletes`}
+          </span>
+
+          <div className="flex items-center gap-2">
+            {remainingCount > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCount((prev) => Math.min(candidates.length, prev + BATCH_SIZE))
+                }
+                className="px-4 py-2 rounded-lg bg-[#F5F5F0] hover:bg-[#D6D6D2]/60 border border-[#D6D6D2] text-xs font-bold text-[#333333] flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
                 <ChevronDown className="w-4 h-4 text-[#C42126]" />
                 <span>
                   {language === 'vi'
-                    ? `Xem thêm ${hiddenCount} ứng viên khác`
-                    : `Show ${hiddenCount} more candidates`}
+                    ? `Tải thêm ${nextLoadCount} ứng viên`
+                    : `Load ${nextLoadCount} more`}
                 </span>
-              </>
+              </button>
             )}
-          </button>
+
+            {visibleCount > BATCH_SIZE && (
+              <button
+                type="button"
+                onClick={() => setVisibleCount(BATCH_SIZE)}
+                className="px-3.5 py-2 rounded-lg bg-[#EBEBE6] hover:bg-[#D6D6D2]/60 border border-[#D6D6D2] text-xs font-semibold text-[#5C5C5C] hover:text-[#333333] flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <ChevronUp className="w-4 h-4 text-[#C42126]" />
+                <span>{language === 'vi' ? 'Thu gọn' : 'Collapse'}</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -144,6 +144,35 @@ export class BuddyService {
     };
   }
 
+  private isAutomatedTestAccount(u: { email?: string | null; name?: string | null }): boolean {
+    const email = (u.email || '').trim().toLowerCase();
+    const name = (u.name || '').trim().toLowerCase();
+
+    if (
+      email.startsWith('test_') ||
+      email.startsWith('test-') ||
+      email.startsWith('e2e_') ||
+      email.startsWith('probe_') ||
+      email.startsWith('audit_') ||
+      email.endsWith('@test.com') ||
+      email.endsWith('@fitvant.test')
+    ) {
+      return true;
+    }
+
+    if (
+      name === 'test schema' ||
+      name === 'test reload' ||
+      name === 'test user' ||
+      name.startsWith('test ') ||
+      name.startsWith('e2e ')
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   // Radar Matchmaking to find ideal workout partners
   async findBuddyMatches(userId: string): Promise<BuddyMatchCandidate[]> {
     const [me, activePairs, otherUsers] = await Promise.all([
@@ -188,9 +217,10 @@ export class BuddyService {
       occupiedUserIds.add(pair.user2Id);
     }
 
-    // Filter to available (unpaired) candidates; fallback to all other users only if 0 unpaired exist
-    const availablePool = otherUsers.filter((u) => !occupiedUserIds.has(u.id));
-    const targetPool = availablePool.length > 0 ? availablePool : otherUsers;
+    // Exclude automated test/probe accounts first, then filter to available (unpaired) real users
+    const realUsers = otherUsers.filter((u) => !this.isAutomatedTestAccount(u));
+    const availablePool = realUsers.filter((u) => !occupiedUserIds.has(u.id));
+    const targetPool = availablePool.length > 0 ? availablePool : realUsers;
 
     const candidates: BuddyMatchCandidate[] = targetPool
       .map((u) => {
