@@ -20,6 +20,7 @@ import { ApiClient } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { translateNotification } from '../../lib/catalogTranslations';
+import { triggerSystemPushNotification } from '../../lib/firebaseMessaging';
 
 interface NotificationItem {
   id: string;
@@ -86,6 +87,8 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const hasInitialLoadedRef = useRef<boolean>(false);
 
   const fetchNotifications = React.useCallback(async () => {
     if (!isAuthenticated) return;
@@ -93,13 +96,31 @@ export function NotificationBell() {
     try {
       const res = await ApiClient.getNotifications();
       if (res && Array.isArray(res.notifications)) {
-        setNotifications(res.notifications);
-        setUnreadCount(res.unreadCount ?? res.notifications.filter((n) => !n.isRead).length);
+        const list: NotificationItem[] = res.notifications;
+        if (hasInitialLoadedRef.current) {
+          const newlyArrived = list.find((n) => !n.isRead && !seenIdsRef.current.has(n.id));
+          if (newlyArrived) {
+            const translated = translateNotification(
+              newlyArrived.title,
+              newlyArrived.message,
+              language,
+            );
+            triggerSystemPushNotification({
+              title: translated.title,
+              body: translated.message,
+              link: newlyArrived.link || '/workout',
+            }).catch(() => {});
+          }
+        }
+        list.forEach((n) => seenIdsRef.current.add(n.id));
+        hasInitialLoadedRef.current = true;
+        setNotifications(list);
+        setUnreadCount(res.unreadCount ?? list.filter((n) => !n.isRead).length);
       }
     } catch {
       // Ignore background fetch errors
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, language]);
 
   useEffect(() => {
     if (!isAuthenticated) return;

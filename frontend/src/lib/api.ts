@@ -250,9 +250,33 @@ export class ApiClient {
     });
   }
 
-  // Notifications
+  static async nudgeBuddy() {
+    return this.request<any>('/buddy/nudge', {
+      method: 'POST',
+    });
+  }
+
+  // Notifications & Firebase Cloud Messaging (FCM)
   static async getNotifications() {
     return this.request<{ notifications: any[]; unreadCount: number }>('/notifications');
+  }
+
+  static async registerFcmToken(body: {
+    fcmToken?: string;
+    reminderTime?: string;
+    reminderEnabled?: boolean;
+  }) {
+    return this.request<any>('/notifications/fcm-token', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  static async sendTestPush(language: 'vi' | 'en' = 'vi') {
+    return this.request<any>('/notifications/test-push', {
+      method: 'POST',
+      body: JSON.stringify({ language }),
+    });
   }
 
   static async markNotificationRead(id: string) {

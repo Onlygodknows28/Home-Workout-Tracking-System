@@ -1,0 +1,10 @@
+{
+  "name": "FITVANT - AI Calisthenics & Social Accountability",
+  "short_name": "FITVANT",
+  "description": "Hệ thống Khuyến nghị Tập luyện Thích ứng AI & Kỷ luật Đồng hành",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F5F0",
+  "theme_color": "#C42126",
+  "orientation": "portrait-primary"
+}

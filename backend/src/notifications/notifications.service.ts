@@ -1,4 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { GoogleAuth } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateNotificationDto {
@@ -8,11 +10,110 @@ export interface CreateNotificationDto {
   link?: string;
 }
 
+export interface RegisterFcmDto {
+  fcmToken?: string;
+  reminderTime?: string;
+  reminderEnabled?: boolean;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Dispatches a Web Push notification via Google Firebase Cloud Messaging (FCM HTTP v1 or Server Key).
+   * Falls back cleanly if running with Hybrid Local Service Worker tokens (`sw_local_*`).
+   */
+  async sendFcmPushToToken(
+    fcmToken: string | null | undefined,
+    payload: { title: string; body: string; link?: string; type?: string },
+  ): Promise<{ deliveredViaFcmCloud: boolean; provider: string }> {
+    if (!fcmToken || fcmToken.startsWith('sw_local_')) {
+      return { deliveredViaFcmCloud: false, provider: 'HYBRID_SERVICE_WORKER' };
+    }
+
+    try {
+      // Option A: Firebase HTTP v1 API via FIREBASE_SERVICE_ACCOUNT_JSON
+      const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (serviceAccountRaw) {
+        const credentials = JSON.parse(serviceAccountRaw);
+        const projectId = credentials.project_id || process.env.FIREBASE_PROJECT_ID;
+        if (projectId) {
+          const auth = new GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+          });
+          const accessToken = await auth.getAccessToken();
+          if (accessToken) {
+            const res = await fetch(
+              `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  message: {
+                    token: fcmToken,
+                    notification: {
+                      title: payload.title,
+                      body: payload.body,
+                    },
+                    webpush: {
+                      fcm_options: {
+                        link: payload.link || '/workout',
+                      },
+                    },
+                    data: {
+                      link: payload.link || '/workout',
+                      type: payload.type || 'STREAK',
+                    },
+                  },
+                }),
+              },
+            );
+            if (res.ok) {
+              return { deliveredViaFcmCloud: true, provider: 'FIREBASE_CLOUD_MESSAGING_V1' };
+            }
+          }
+        }
+      }
+
+      // Option B: Firebase Cloud Messaging Server Key
+      const serverKey = process.env.FIREBASE_SERVER_KEY;
+      if (serverKey) {
+        const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+          method: 'POST',
+          headers: {
+            Authorization: `key=${serverKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: fcmToken,
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              click_action: payload.link || '/workout',
+            },
+            data: {
+              link: payload.link || '/workout',
+              type: payload.type || 'STREAK',
+            },
+          }),
+        });
+        if (res.ok) {
+          return { deliveredViaFcmCloud: true, provider: 'FIREBASE_CLOUD_MESSAGING' };
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`FCM Cloud dispatch fallback: ${err?.message || err}`);
+    }
+
+    return { deliveredViaFcmCloud: false, provider: 'HYBRID_SERVICE_WORKER' };
+  }
 
   async createNotification(userId: string, data: CreateNotificationDto) {
     try {
@@ -25,11 +126,111 @@ export class NotificationsService {
           link: data.link || null,
         },
       });
+
+      // Non-blocking FCM Push dispatch if user has registered an FCM token
+      this.prisma.user
+        .findUnique({
+          where: { id: userId },
+          select: { fcmToken: true, reminderEnabled: true },
+        })
+        .then((u) => {
+          if (u?.fcmToken && u.reminderEnabled !== false) {
+            return this.sendFcmPushToToken(u.fcmToken, {
+              title: data.title,
+              body: data.message,
+              link: data.link || '/workout',
+              type: data.type,
+            });
+          }
+        })
+        .catch(() => {});
+
       return notification;
     } catch (err: any) {
       this.logger.error(`Error creating notification for user ${userId}:`, err);
       return null;
     }
+  }
+
+  async registerFcmToken(userId: string, dto: RegisterFcmDto) {
+    const updateData: Record<string, any> = {};
+    if (dto.fcmToken !== undefined) {
+      updateData.fcmToken = dto.fcmToken;
+    }
+    if (dto.reminderTime !== undefined && /^\d{2}:\d{2}$/.test(dto.reminderTime)) {
+      updateData.reminderTime = dto.reminderTime;
+    }
+    if (dto.reminderEnabled !== undefined) {
+      updateData.reminderEnabled = Boolean(dto.reminderEnabled);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        fcmToken: true,
+        reminderTime: true,
+        reminderEnabled: true,
+      },
+    });
+
+    return {
+      success: true,
+      fcmToken: updated.fcmToken,
+      reminderTime: updated.reminderTime || '18:00',
+      reminderEnabled: updated.reminderEnabled,
+    };
+  }
+
+  async sendTestPushNotification(userId: string, lang: 'vi' | 'en' = 'vi') {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        currentStreak: true,
+        fcmToken: true,
+        reminderTime: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const title =
+      lang === 'en'
+        ? `🔥 FITVANT Workout Reminder (${user.reminderTime || '18:00'})`
+        : `🔥 Nhắc Tập FITVANT (${user.reminderTime || '18:00'})`;
+    const message =
+      lang === 'en'
+        ? `Hey ${user.name}! Your 15-min AI Calisthenics routine is ready. Protect your ${user.currentStreak || 1}-day streak now!`
+        : `Chào ${user.name}! Giáo án AI 15 phút hôm nay đã sẵn sàng. Hãy vào tập ngay để bảo vệ chuỗi Streak ${user.currentStreak || 1} ngày!`;
+
+    const notification = await this.prisma.notification.create({
+      data: {
+        userId,
+        type: 'STREAK',
+        title,
+        message,
+        link: '/workout',
+      },
+    });
+
+    const fcmResult = await this.sendFcmPushToToken(user.fcmToken, {
+      title,
+      body: message,
+      link: '/workout',
+      type: 'STREAK',
+    });
+
+    return {
+      success: true,
+      provider: fcmResult.provider,
+      deliveredViaFcmCloud: fcmResult.deliveredViaFcmCloud,
+      notification,
+    };
   }
 
   async getUserNotifications(userId: string) {
@@ -166,5 +367,54 @@ export class NotificationsService {
     });
 
     return true;
+  }
+
+  /**
+   * Daily Evening Workout & Streak Protection Reminder Cron (18:00)
+   * Dispatches In-App + Firebase Cloud Messaging (FCM) push notifications to users
+   * who have not yet completed their daily workout.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_6PM)
+  async handleEveningWorkoutReminderCron() {
+    const today = new Date().toISOString().split('T')[0];
+    this.logger.log(`Executing Daily Workout Reminder Cron Job for ${today}...`);
+
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          reminderEnabled: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          currentStreak: true,
+          lastActiveDate: true,
+          fcmToken: true,
+        },
+      });
+
+      let remindedCount = 0;
+      for (const user of users) {
+        const lastActive = user.lastActiveDate
+          ? user.lastActiveDate.toISOString().split('T')[0]
+          : null;
+        if (lastActive === today) continue;
+
+        await this.createNotification(user.id, {
+          type: 'STREAK',
+          title: '🔥 Đừng Quên Giáo Án Tập Hôm Nay!',
+          message:
+            user.currentStreak > 0
+              ? `Còn vài tiếng nữa là hết ngày! Hoàn thành 15 phút tập luyện ngay để bảo vệ chuỗi Streak ${user.currentStreak} ngày của bạn.`
+              : 'Giáo án Calisthenics 15 phút hôm nay đã sẵn sàng. Hãy vào khởi động chuỗi Streak mới ngay nhé!',
+          link: '/workout',
+        });
+        remindedCount++;
+      }
+
+      this.logger.log(`Evening workout reminders dispatched to ${remindedCount} user(s).`);
+    } catch (err: any) {
+      this.logger.warn(`Evening reminder cron skipped: ${err?.message || err}`);
+    }
   }
 }

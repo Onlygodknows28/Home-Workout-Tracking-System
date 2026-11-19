@@ -40,6 +40,7 @@ const barlowCondensed = localFont({
 export const metadata: Metadata = {
   title: 'FITVANT - Home Workout Tracking & Social Gamification System',
   description: 'Khóa Luận Tốt Nghiệp: Hệ Thống Tập Luyện Calisthenics & Gamification Kỷ Luật',
+  manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {

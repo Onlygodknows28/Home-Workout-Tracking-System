@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { CheckCircle2, Circle, Flame, Gift, UserMinus } from 'lucide-react';
+import { ApiClient } from '../../lib/api';
+import { BellRing, Check, CheckCircle2, Circle, Flame, Gift, UserMinus } from 'lucide-react';
 import {
   getMissionTitle,
   getFitnessLevelLabel,
@@ -22,12 +23,28 @@ export function CoopMissionCard({
   onOpenUnpairModal,
 }: CoopMissionCardProps) {
   const { t, language } = useLanguage();
+  const [isNudging, setIsNudging] = useState(false);
+  const [nudgedSuccess, setNudgedSuccess] = useState(false);
 
   if (!buddyData || !buddyData.hasBuddy) {
     return null;
   }
 
   const { partner, mission, sharedStreak } = buddyData;
+
+  const handleNudgePartner = async () => {
+    if (isNudging || nudgedSuccess) return;
+    setIsNudging(true);
+    try {
+      await ApiClient.nudgeBuddy();
+      setNudgedSuccess(true);
+      setTimeout(() => setNudgedSuccess(false), 5000);
+    } catch {
+      // ignore
+    } finally {
+      setIsNudging(false);
+    }
+  };
 
   return (
     <div className="bento-tile p-5 flex-1 min-h-0 flex flex-col justify-between gap-3.5">
@@ -117,7 +134,9 @@ export function CoopMissionCard({
                   ) : (
                     <Circle className="w-3.5 h-3.5 text-[#5C5C5C]" />
                   )}
-                  <span>{formatPersonName(partner.name.split(' ')[0], language)} ({mission.partnerProgress}r)</span>
+                  <span>
+                    {formatPersonName(partner.name?.split(' ')[0] || 'Buddy', language)} ({mission.partnerProgress}r)
+                  </span>
                 </span>
               </div>
 
@@ -136,8 +155,38 @@ export function CoopMissionCard({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
+          type="button"
+          onClick={handleNudgePartner}
+          disabled={isNudging || nudgedSuccess}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg font-semibold text-xs uppercase transition-colors cursor-pointer ${
+            nudgedSuccess
+              ? 'bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32]'
+              : 'bg-[#333333] hover:bg-[#C42126] text-[#FFFFFF]'
+          }`}
+        >
+          {nudgedSuccess ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              <span>{language === 'vi' ? 'Đã nhắc tập!' : 'Nudged!'}</span>
+            </>
+          ) : (
+            <>
+              <BellRing className="w-3.5 h-3.5" />
+              <span>
+                {isNudging
+                  ? '...'
+                  : language === 'vi'
+                    ? 'Nhắc bạn tập'
+                    : 'Nudge Partner'}
+              </span>
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
           onClick={onOpenGiftModal}
           className="flex-1 flex items-center justify-center gap-1.5 bg-[#F5F5F0] hover:bg-[#333333] text-[#333333] hover:text-[#FFFFFF] border border-[#D6D6D2] py-2 px-3 rounded-lg font-semibold text-xs uppercase transition-colors cursor-pointer"
         >
@@ -147,6 +196,7 @@ export function CoopMissionCard({
 
         {onOpenUnpairModal && (
           <button
+            type="button"
             onClick={onOpenUnpairModal}
             className="flex items-center justify-center gap-1 bg-[#FDE8E9] hover:bg-[#C42126] text-[#C42126] hover:text-[#FFFFFF] py-2 px-3 rounded-lg font-semibold text-xs uppercase transition-colors cursor-pointer shrink-0"
             title={t('unpairBuddyBtn')}

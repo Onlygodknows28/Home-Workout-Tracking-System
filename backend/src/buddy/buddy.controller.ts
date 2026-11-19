@@ -51,4 +51,10 @@ export class BuddyController {
   async unpairBuddy(@CurrentUser('id') userId: string) {
     return this.buddyService.unpairBuddy(userId);
   }
+
+  @Post('nudge')
+  @ApiOperation({ summary: 'Send a workout reminder push notification (FCM Nudge) to active buddy' })
+  async nudgeBuddy(@CurrentUser('id') userId: string) {
+    return this.buddyService.nudgeBuddy(userId);
+  }
 }

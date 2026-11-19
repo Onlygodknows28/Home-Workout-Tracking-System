@@ -20,6 +20,7 @@ import {
 import { CoopMissionCard } from '../components/buddy/CoopMissionCard';
 import { GiftFreezeModal } from '../components/buddy/GiftFreezeModal';
 import { GuestLandingView } from '../components/home/GuestLandingView';
+import { checkAndFireScheduledDailyReminder } from '../lib/firebaseMessaging';
 import {
   Dumbbell,
   Flame,
@@ -120,6 +121,16 @@ export default function HomePage() {
       loadHomeData(false);
     }
   }, [isAuthenticated, isCacheHydrated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !todayStatus) return;
+    const workedOut = Boolean(todayStatus?.hasWorkedOutToday || todayStatus?.workoutDone);
+    checkAndFireScheduledDailyReminder({
+      hasWorkedOutToday: workedOut,
+      streak: user?.currentStreak || 1,
+      language,
+    });
+  }, [isAuthenticated, todayStatus, user?.currentStreak, language]);
 
   const handleNutritionCheckIn = async (
     calorieState: 'DEFICIT' | 'MAINTENANCE' | 'SURPLUS',

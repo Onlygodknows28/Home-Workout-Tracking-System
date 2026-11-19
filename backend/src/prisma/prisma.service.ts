@@ -9,6 +9,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     await this.$connect();
     try {
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "User"
+        ADD COLUMN IF NOT EXISTS "fcmToken" TEXT,
+        ADD COLUMN IF NOT EXISTS "reminderTime" TEXT DEFAULT '18:00',
+        ADD COLUMN IF NOT EXISTS "reminderEnabled" BOOLEAN NOT NULL DEFAULT true;
+      `);
+    } catch (err) {
+      this.logger.warn(`Auto-migration check for FCM columns skipped: ${(err as Error)?.message || err}`);
+    }
+    try {
       await ensureSeedData(this, this.logger);
     } catch (err) {
       this.logger.warn(

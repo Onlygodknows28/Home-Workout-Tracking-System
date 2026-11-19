@@ -406,4 +406,39 @@ export class BuddyService {
       remainingFreezes: sender.streakFreezeCount - 1,
     };
   }
+
+  // Send a workout reminder nudge (FCM Push + In-App Notification) to active buddy partner
+  async nudgeBuddy(userId: string) {
+    const activePair = await this.prisma.buddyPair.findFirst({
+      where: {
+        OR: [{ user1Id: userId }, { user2Id: userId }],
+        status: { in: ['ACTIVE', 'active'] },
+      },
+      include: {
+        user1: { select: { id: true, name: true } },
+        user2: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!activePair) {
+      throw new NotFoundException('Bạn hiện chưa có bạn tập đồng hành để gửi lời nhắc.');
+    }
+
+    const isUser1 = activePair.user1Id === userId;
+    const me = isUser1 ? activePair.user1 : activePair.user2;
+    const partner = isUser1 ? activePair.user2 : activePair.user1;
+
+    await this.notificationsService.createNotification(partner.id, {
+      type: 'BUDDY_SYNC',
+      title: '🔥 Bạn Tập Nhắc Nhở Luyện Tập!',
+      message: `${me.name} vừa gửi tín hiệu thúc giục bạn vào hoàn thành nhiệm vụ Co-op 100 Reps hôm nay để giữ vững chuỗi Shared Streak!`,
+      link: '/workout',
+    });
+
+    return {
+      success: true,
+      partnerName: partner.name,
+      message: `Đã gửi thông báo đẩy (FCM Push) nhắc tập tới ${partner.name}!`,
+    };
+  }
 }

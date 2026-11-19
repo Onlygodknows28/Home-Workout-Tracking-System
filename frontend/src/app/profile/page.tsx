@@ -26,6 +26,7 @@ import {
   getGoalLabel,
   formatInjuryList,
 } from '../../lib/catalogTranslations';
+import { SmartReminderCard } from '../../components/notifications/SmartReminderCard';
 
 const INITIAL_HISTORY_LIMIT = 4;
 
@@ -492,6 +493,9 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Firebase Cloud Messaging (FCM) & Omnichannel Daily Workout Reminder Settings */}
+      <SmartReminderCard />
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import { Controller, Get, Patch, Delete, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Delete, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { NotificationsService } from './notifications.service';
+import { NotificationsService, RegisterFcmDto } from './notifications.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@ApiTags('Notifications')
+@ApiTags('Notifications & Firebase Cloud Messaging')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -15,6 +15,24 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get all notifications and unread counter for current user' })
   async getNotifications(@CurrentUser('id') userId: string) {
     return this.notificationsService.getUserNotifications(userId);
+  }
+
+  @Post('fcm-token')
+  @ApiOperation({ summary: 'Register Firebase Cloud Messaging (FCM) device token and daily workout reminder schedule' })
+  async registerFcmToken(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RegisterFcmDto,
+  ) {
+    return this.notificationsService.registerFcmToken(userId, dto);
+  }
+
+  @Post('test-push')
+  @ApiOperation({ summary: 'Dispatch an immediate test push notification via Firebase Cloud Messaging / Service Worker' })
+  async sendTestPush(
+    @CurrentUser('id') userId: string,
+    @Body() body?: { language?: 'vi' | 'en' },
+  ) {
+    return this.notificationsService.sendTestPushNotification(userId, body?.language || 'vi');
   }
 
   @Patch(':id/read')
