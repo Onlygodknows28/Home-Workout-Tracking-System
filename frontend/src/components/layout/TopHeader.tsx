@@ -280,7 +280,7 @@ export function TopHeader() {
               }`}
             >
               <Settings className="w-4 h-4 text-[#C42126]" />
-              <span>{language === 'vi' ? 'Cài Đặt (Settings)' : 'Settings'}</span>
+              <span>{language === 'vi' ? 'Cài Đặt' : 'Settings'}</span>
             </Link>
           </div>
 
