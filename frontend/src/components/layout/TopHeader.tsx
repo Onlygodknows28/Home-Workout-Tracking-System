@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { Flame, Shield, Coins, Menu, X, LogOut } from 'lucide-react';
+import { Flame, Shield, Coins, Menu, X, LogOut, Settings } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { formatPersonName } from '../../lib/catalogTranslations';
 
@@ -29,7 +29,7 @@ export function TopHeader() {
   // Eagerly prefetch all primary route bundles right after initial mount for 0ms route transitions
   useEffect(() => {
     const timer = setTimeout(() => {
-      const coreRoutes = ['/', '/workout', '/buddy', '/shop', '/profile', '/login', '/register'];
+      const coreRoutes = ['/', '/workout', '/buddy', '/shop', '/profile', '/settings', '/login', '/register'];
       coreRoutes.forEach((route) => {
         try {
           router.prefetch(route);
@@ -265,25 +265,23 @@ export function TopHeader() {
         </div>
       </div>
 
-      {/* Mobile / Drawer Dropdown Menu */}
+      {/* Top-Right Menu Dropdown: Settings & Session Action */}
       {mobileMenuOpen && (
         <div className="bg-[#F5F5F0] text-[#333333] px-6 py-4 border-t border-[#D6D6D2] space-y-3">
           <div className="divide-y divide-[#D6D6D2] border-b border-[#D6D6D2]">
-            {navLinks.map((link) => {
-              const active = isLinkActive(link);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => handleNavClick(link.hash)}
-                  className={`block py-2.5 text-sm font-semibold transition-colors ${
-                    active ? 'text-[#C42126] font-bold' : 'text-[#5C5C5C] hover:text-[#333333]'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+            <Link
+              href="/settings"
+              onMouseEnter={() => handlePrefetch('/settings')}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`py-2.5 text-sm font-semibold transition-colors flex items-center gap-2 ${
+                pathname === '/settings'
+                  ? 'text-[#C42126] font-bold'
+                  : 'text-[#5C5C5C] hover:text-[#333333]'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-[#C42126]" />
+              <span>{language === 'vi' ? 'Cài Đặt (Settings)' : 'Settings'}</span>
+            </Link>
           </div>
 
           {isAuthenticated ? (
