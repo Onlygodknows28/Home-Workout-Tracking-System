@@ -43,10 +43,11 @@ export async function registerWorkoutServiceWorker(): Promise<ServiceWorkerRegis
     return null;
   }
   try {
-    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+    await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
       scope: '/',
     });
-    return reg;
+    const readyReg = await navigator.serviceWorker.ready;
+    return readyReg;
   } catch (err) {
     console.warn('Service Worker registration warning:', err);
     return null;

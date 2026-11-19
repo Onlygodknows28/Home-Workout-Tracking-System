@@ -39,6 +39,9 @@ export class NotificationsService {
       const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (serviceAccountRaw) {
         const credentials = JSON.parse(serviceAccountRaw);
+        if (typeof credentials.private_key === 'string') {
+          credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+        }
         const projectId = credentials.project_id || process.env.FIREBASE_PROJECT_ID;
         if (projectId) {
           const auth = new GoogleAuth({
@@ -78,6 +81,8 @@ export class NotificationsService {
             if (res.ok) {
               return { deliveredViaFcmCloud: true, provider: 'FIREBASE_CLOUD_MESSAGING_V1' };
             }
+            const errBody = await res.text().catch(() => '');
+            this.logger.warn(`FCM v1 HTTP ${res.status}: ${errBody.slice(0, 200)}`);
           }
         }
       }
