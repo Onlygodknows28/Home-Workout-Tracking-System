@@ -212,6 +212,19 @@ export class MessagesService {
       });
     }
 
+    // Also clear any unread in-app MESSAGE notification from this partner
+    this.prisma.notification
+      .updateMany({
+        where: {
+          userId,
+          type: 'MESSAGE',
+          link: `/messages?user=${partnerId}`,
+          isRead: false,
+        },
+        data: { isRead: true },
+      })
+      .catch(() => {});
+
     return {
       partner: {
         userId: partner.id,
@@ -277,17 +290,50 @@ export class MessagesService {
       },
     });
 
-    // Non-blocking Firebase Cloud Messaging (FCM) Web Push to recipient
-    if (receiver.fcmToken && receiver.reminderEnabled !== false) {
-      const senderName = sender.name || sender.email.split('@')[0];
-      this.notificationsService
-        .sendFcmPushToToken(receiver.fcmToken, {
-          title: `💬 ${senderName}`,
-          body: content.length > 120 ? `${content.slice(0, 117)}...` : content,
-          link: `/messages?user=${userId}`,
-          type: 'SYSTEM',
-        })
-        .catch(() => {});
+    const senderName = sender.name || sender.email.split('@')[0];
+    const preview = content.length > 120 ? `${content.slice(0, 117)}...` : content;
+    const targetLink = `/messages?user=${userId}`;
+
+    // Create or update an unread In-App Notification so the Bell icon alerts the user cleanly
+    // without flooding multiple duplicate rows from the same sender
+    const existingUnread = await this.prisma.notification.findFirst({
+      where: {
+        userId: partnerId,
+        type: 'MESSAGE',
+        link: targetLink,
+        isRead: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingUnread) {
+      await this.prisma.notification.update({
+        where: { id: existingUnread.id },
+        data: {
+          title: `Tin nhắn mới từ ${senderName}`,
+          message: preview,
+          createdAt: new Date(),
+        },
+      });
+      // Still dispatch FCM Web Push for the latest message
+      if (receiver.fcmToken && receiver.reminderEnabled !== false) {
+        this.notificationsService
+          .sendFcmPushToToken(receiver.fcmToken, {
+            title: `💬 ${senderName}`,
+            body: preview,
+            link: targetLink,
+            type: 'MESSAGE',
+          })
+          .catch(() => {});
+      }
+    } else {
+      // createNotification saves the In-App Notification AND dispatches FCM Push automatically
+      await this.notificationsService.createNotification(partnerId, {
+        type: 'MESSAGE',
+        title: `Tin nhắn mới từ ${senderName}`,
+        message: preview,
+        link: targetLink,
+      });
     }
 
     return {

@@ -15,6 +15,7 @@ import {
   Check,
   Inbox,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { ApiClient } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
@@ -72,6 +73,8 @@ function getNotificationIcon(type: string) {
       return <Coins className="w-4 h-4 text-[#C42126]" />;
     case 'STREAK':
       return <Flame className="w-4 h-4 text-[#C42126]" />;
+    case 'MESSAGE':
+      return <MessageSquare className="w-4 h-4 text-[#C42126]" />;
     default:
       return <Bell className="w-4 h-4 text-[#5C5C5C]" />;
   }
@@ -130,7 +133,7 @@ export function NotificationBell() {
 
     const interval = setInterval(() => {
       fetchNotifications();
-    }, 30000);
+    }, 12000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {

@@ -4,7 +4,15 @@ import { GoogleAuth } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateNotificationDto {
-  type: 'WORKOUT' | 'LEVEL_UP' | 'BUDDY_GIFT' | 'BUDDY_SYNC' | 'SHOP' | 'STREAK' | 'SYSTEM';
+  type:
+    | 'WORKOUT'
+    | 'LEVEL_UP'
+    | 'BUDDY_GIFT'
+    | 'BUDDY_SYNC'
+    | 'SHOP'
+    | 'STREAK'
+    | 'MESSAGE'
+    | 'SYSTEM';
   title: string;
   message: string;
   link?: string;
