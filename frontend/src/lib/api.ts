@@ -302,4 +302,22 @@ export class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Direct Messages (User-to-User Chat)
+  static async getMessageContacts() {
+    return this.request<{ contacts: any[]; totalUnread: number }>('/messages/contacts');
+  }
+
+  static async getConversation(partnerId: string) {
+    return this.request<{ partner: any; messages: any[] }>(
+      `/messages/conversation/${partnerId}`,
+    );
+  }
+
+  static async sendDirectMessage(partnerId: string, content: string) {
+    return this.request<any>(`/messages/send/${partnerId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
 }

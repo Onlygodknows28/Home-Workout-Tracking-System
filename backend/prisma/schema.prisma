@@ -42,6 +42,8 @@ model User {
   buddies2          BuddyPair[]       @relation("User2Buddies")
   antiCheatLogs     AntiCheatLog[]
   notifications     Notification[]
+  sentMessages      DirectMessage[]   @relation("SentMessages")
+  receivedMessages  DirectMessage[]   @relation("ReceivedMessages")
 }
 
 model Profile {
@@ -213,4 +215,18 @@ model Notification {
   isRead    Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, isRead])
 }

@@ -11,6 +11,7 @@ import { GamificationModule } from './gamification/gamification.module';
 import { BuddyModule } from './buddy/buddy.module';
 import { AntiCheatModule } from './anti-cheat/anti-cheat.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     BuddyModule,
     AntiCheatModule,
     NotificationsModule,
+    MessagesModule,
   ],
 })
 export class AppModule {}
